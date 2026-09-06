@@ -16,6 +16,9 @@ __pycache__/
 .env
 .env.*
 
+# Large Census CPS ASEC public-use files are downloaded on demand by the Rmd.
+data/raw/census_parent_denominators/asec*_pubuse.dat.gz
+
 # Operating-system metadata
 .DS_Store
 Thumbs.db

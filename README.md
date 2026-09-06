@@ -33,6 +33,14 @@ The primary RStudio workflow writes these finished deliverables to `output/`:
   heterogeneity.
 - `inferential_model_leave_one_year_out_2016_2025.csv`: influence sensitivity
   estimates obtained by omitting each data year in turn.
+- `population_denominated_filicide_rates_2016_2025.csv`: annual under-18
+  filicide offender-record counts, Census coresident-parent denominators, and
+  reported records per million parent-years by sex.
+- `population_denominated_filicide_rate_ratio_2016_2025.csv`: pooled rates and
+  the female:male rate ratio, a count-only Poisson interval, and the primary
+  year-adjusted quasi-Poisson interval corrected for overdispersion.
+- `census_parent_denominator_method_validation_2023.csv`: comparison of the
+  published 2023 parent totals with the CPS ASEC microdata reconstruction.
 - `figures/figure_1_primary_comparison_2016_2025.{png,svg}`: linked panels for
   female proportion, the actual within-group female:male ratio, and the
   adjusted comparative odds ratio.
@@ -42,6 +50,9 @@ The primary RStudio workflow writes these finished deliverables to `output/`:
   proportions and Wilson intervals by analytic group.
 - `figures/figure_4_unknown_sex_2016_2025.{png,svg}`: unknown-sex prevalence by
   analytic group.
+- `figures/figure_5_denominator_contrast_2016_2025.{png,svg}`: contrast between
+  the conditional odds among homicide offender records and reported-record
+  rates using Census coresident-parent exposure.
 
 Supporting prepared data remain in `data/processed/`:
 
@@ -59,6 +70,9 @@ Supporting prepared data remain in `data/processed/`:
   keep parent and stepparent records separate.
 - `source_inventory.csv`: FBI archive key, SHA-256 checksum, file size, record
   counts, retrieval time, and parser diagnostics for every annual master file.
+- `census_coresident_parent_denominators_2016_2025.csv`: sex-specific parent
+  estimates from published CPS ASEC Table AD-2 for 2016-2023 and a validated
+  public-use-microdata reconstruction for 2024-2025.
 
 ## Operational definitions
 
@@ -79,9 +93,12 @@ Supporting prepared data remain in `data/processed/`:
   male or female as the denominator. The files also report percentages of all
   records and retain unknown/not-specified counts.
 
-These are descriptive proportions, not population offending rates. Creating a
-sex-specific offending rate would require defensible population denominators
-and additional assumptions that are outside this first data release.
+The first four figures and the homicide-composition tables are descriptive
+proportions, not population offending rates. Figure 5 adds a deliberately
+bounded population-denominated comparison using Census estimates of people
+with a coresident child under 18. It is a reported offender-record rate per
+national coresident parent-year, not a complete U.S. incidence rate or an
+individual probability.
 
 ## Important limitations
 
@@ -104,6 +121,14 @@ relationship fields, and the FBI transition toward NIBRS beginning with the
 not complete enumerations of every U.S. homicide. Small annual filicide cells
 are volatile; pooled periods are generally the sounder descriptive view.
 
+The population denominator excludes nonresident parents, but the SHR does not
+identify whether the offender and victim were coresident. The Census counts
+are also national rather than restricted to SHR-reporting jurisdictions.
+Those scope mismatches mean that Figure 5 must not be described as the chance
+that an arbitrary mother or father will commit filicide. Its confidence
+interval reflects numerator count variation only; it does not incorporate CPS
+survey error or uncertainty from SHR undercoverage and missing relationships.
+
 The API and master files can differ because the API is refreshed with later
 agency corrections while an annual archive is a fixed download. This is why
 the broad file uses the current API and the cross-tab files carry archive
@@ -116,6 +141,8 @@ checksums rather than mixing the two without disclosure.
 - [FBI Expanded Homicide API endpoint](https://cde.ucr.cjis.gov/LATEST/shr/national?from=01-2025&to=12-2025&type=totals)
 - [OJJDP explanation of SHR data and victim/offender file structure](https://www.ojjdp.ojp.gov/statistical-briefing-book/data-analysis-tools/ezashr/methods)
 - [CDC WISQARS NVDRS help on the direction of parent/child relationship coding](https://wisqars.cdc.gov/help/national-violent-death-reporting-system/)
+- [Census historical living arrangements of adults, including Table AD-2](https://www.census.gov/data/tables/time-series/demo/families/adults.html)
+- [Census 2025 CPS ASEC public-use data and documentation](https://www.census.gov/data/datasets/2025/demo/cps/cps-asec-2025.html)
 
 ## Primary RStudio workflow
 
@@ -127,8 +154,10 @@ and writes the documented CSVs and knitted HTML report to `output/`.
 
 The R Markdown analysis does not import a Python-generated analytic table. Its
 descriptive parsing uses base R; the inferential section additionally requires
-the `sandwich` package for source-record-clustered covariance estimates. Figure
-generation requires `ggplot2`, `scales`, and `patchwork`.
+the `sandwich` package for source-record-clustered covariance estimates. The
+population-denominator section requires `readxl`; on a clean clone, it
+downloads the official 2023-2025 CPS ASEC fixed-width files directly from the
+Census Bureau. Figure generation requires `ggplot2`, `scales`, and `patchwork`.
 
 ## Source archive acquisition
 

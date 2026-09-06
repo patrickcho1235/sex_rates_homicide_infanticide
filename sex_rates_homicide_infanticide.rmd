@@ -1188,6 +1188,587 @@ The annual disjoint input, inferential estimates, model diagnostics,
 cell-level diagnostics, and missingness sensitivity table are written to the
 `output/` directory during knitting.
 
+## Population-denominated comparison
+
+The homicide-composition comparison above does not estimate how often women or
+men in the parent population commit filicide. For that question, the relevant
+denominator is exposure as a parent. The closest annual national series is the
+U.S. Census Bureau's count of mothers and fathers with at least one coresident,
+never-married biological, step, or adopted child under 18.
+
+The code below uses the published CPS ASEC historical workbook for 2016--2023.
+Because the published historical table currently ends in 2023, it applies the
+same parent-pointer definition to the 2024 and 2025 CPS ASEC public-use
+microdata. It also reproduces 2023 from microdata as a validation check. The
+large public-use files are downloaded from Census only when they are absent
+from the local cache.
+
+This is a useful but imperfect denominator. It excludes nonresident parents,
+whereas SHR does not report whether an offender lived with the victim. It is
+national rather than limited to SHR-reporting jurisdictions, and SHR is an
+incomplete reporting system. Consequently, the quantities below are
+**reported offender-record rates per national coresident parent-year**, not
+complete U.S. incidence rates or individual probabilities.
+
+```{r parent-population-denominators}
+if (!requireNamespace("readxl", quietly = TRUE)) {
+  stop(
+    paste(
+      "The population-denominator section requires the readxl package.",
+      "Install it with install.packages('readxl') and knit again."
+    )
+  )
+}
+
+parent_denominator_directory <- file.path(
+  "data",
+  "raw",
+  "census_parent_denominators"
+)
+dir.create(parent_denominator_directory, recursive = TRUE, showWarnings = FALSE)
+
+census_historical_parent_url <- paste0(
+  "https://www2.census.gov/programs-surveys/demo/tables/families/",
+  "time-series/adults/ad2.xls"
+)
+census_historical_parent_file <- file.path(
+  parent_denominator_directory,
+  "ad2.xls"
+)
+
+download_if_missing <- function(url, destination) {
+  if (file.exists(destination) && file.info(destination)$size > 0) {
+    return(invisible(destination))
+  }
+
+  temporary_destination <- tempfile(
+    pattern = paste0(basename(destination), "-"),
+    tmpdir = dirname(destination)
+  )
+  on.exit(unlink(temporary_destination), add = TRUE)
+  utils::download.file(
+    url,
+    temporary_destination,
+    mode = "wb",
+    quiet = FALSE
+  )
+  if (!file.rename(temporary_destination, destination)) {
+    stop(sprintf("Could not move the downloaded file to %s.", destination))
+  }
+  invisible(destination)
+}
+
+download_if_missing(
+  census_historical_parent_url,
+  census_historical_parent_file
+)
+
+extract_published_parent_section <- function(raw_table, heading, sex_label) {
+  labels <- as.character(raw_table[[1L]])
+  section_start <- which(labels == heading)[[1L]] + 1L
+  following_blank <- which(
+    is.na(labels[section_start:length(labels)]) |
+      !nzchar(labels[section_start:length(labels)])
+  )[[1L]]
+  section_end <- section_start + following_blank - 2L
+
+  section <- raw_table[section_start:section_end, c(1L, 2L)]
+  names(section) <- c("year_label", "parent_count_thousands")
+  section$year <- suppressWarnings(
+    as.integer(sub("^\\.\\.(\\d{4}).*$", "\\1", section$year_label))
+  )
+  section$parent_count <-
+    as.numeric(section$parent_count_thousands) * 1000
+  section$sex <- sex_label
+
+  section <- section[!is.na(section$year), , drop = FALSE]
+  # Revised rows (for example, 2021r) precede the original row in the file.
+  section <- section[!duplicated(section$year), , drop = FALSE]
+  section[, c("year", "sex", "parent_count")]
+}
+
+published_parent_raw <- readxl::read_excel(
+  census_historical_parent_file,
+  sheet = "Table AD-2",
+  col_names = FALSE
+)
+published_parent_denominators <- rbind(
+  extract_published_parent_section(
+    published_parent_raw,
+    ".Coresident mothers",
+    "female"
+  ),
+  extract_published_parent_section(
+    published_parent_raw,
+    ".Coresident fathers",
+    "male"
+  )
+)
+published_parent_denominators <- published_parent_denominators[
+  published_parent_denominators$year %in% 2016:2023,
+  ,
+  drop = FALSE
+]
+
+parse_cps_asec_parent_denominators <- function(year, directory) {
+  source_url <- sprintf(
+    paste0(
+      "https://www2.census.gov/programs-surveys/cps/datasets/%d/march/",
+      "asec%d_pubuse.dat.gz"
+    ),
+    year,
+    year
+  )
+  source_file <- file.path(
+    directory,
+    sprintf("asec%d_pubuse.dat.gz", year)
+  )
+  download_if_missing(source_url, source_file)
+
+  connection <- gzfile(source_file, open = "rt")
+  on.exit(close(connection), add = TRUE)
+  records <- readLines(connection, warn = FALSE)
+  records <- records[substr(records, 1L, 1L) == "3"]
+
+  fixed_numeric <- function(start, stop) {
+    suppressWarnings(as.numeric(substr(records, start, stop)))
+  }
+
+  people <- data.frame(
+    household_sequence = substr(records, 36L, 40L),
+    line_number = fixed_numeric(2L, 3L),
+    parent_1_line = fixed_numeric(51L, 52L),
+    parent_2_line = fixed_numeric(53L, 54L),
+    supplement_weight = fixed_numeric(71L, 78L) / 100,
+    age = fixed_numeric(79L, 80L),
+    marital_status = fixed_numeric(90L, 90L),
+    sex_code = fixed_numeric(92L, 92L),
+    parent_1_type = fixed_numeric(141L, 142L),
+    parent_2_type = fixed_numeric(143L, 144L),
+    stringsAsFactors = FALSE
+  )
+  rm(records)
+
+  person_key <- paste(
+    people$household_sequence,
+    people$line_number,
+    sep = "-"
+  )
+  if (anyDuplicated(person_key)) {
+    stop(sprintf("Person keys are not unique in the %d CPS ASEC file.", year))
+  }
+
+  # Table AD-2 defines children as never-married biological, step, or adopted
+  # children. PEPAR1TYP/PEPAR2TYP codes 1:3 represent those three types.
+  eligible_child <- people$age < 18L & people$marital_status == 7L
+  parent_1_present <-
+    eligible_child &
+    people$parent_1_line > 0L &
+    people$parent_1_type %in% 1:3
+  parent_2_present <-
+    eligible_child &
+    people$parent_2_line > 0L &
+    people$parent_2_type %in% 1:3
+
+  referenced_parent_keys <- unique(c(
+    paste(
+      people$household_sequence[parent_1_present],
+      people$parent_1_line[parent_1_present],
+      sep = "-"
+    ),
+    paste(
+      people$household_sequence[parent_2_present],
+      people$parent_2_line[parent_2_present],
+      sep = "-"
+    )
+  ))
+  is_coresident_parent <- person_key %in% referenced_parent_keys
+
+  parent_records <- people[
+    is_coresident_parent & people$sex_code %in% c(1L, 2L),
+    ,
+    drop = FALSE
+  ]
+  totals <- stats::aggregate(
+    supplement_weight ~ sex_code,
+    data = parent_records,
+    FUN = sum
+  )
+  names(totals)[names(totals) == "supplement_weight"] <- "parent_count"
+  totals$sex <- ifelse(totals$sex_code == 1L, "male", "female")
+  totals$year <- year
+  totals$source_url <- source_url
+  totals$source_file_md5 <- unname(tools::md5sum(source_file))
+  totals[, c(
+    "year",
+    "sex",
+    "parent_count",
+    "source_url",
+    "source_file_md5"
+  )]
+}
+
+# The 2023 reconstruction validates the algorithm against the final published
+# historical table. The same algorithm supplies 2024 and 2025.
+microdata_parent_denominators <- do.call(
+  rbind,
+  lapply(2023:2025, parse_cps_asec_parent_denominators,
+         directory = parent_denominator_directory)
+)
+
+parent_denominator_validation <- merge(
+  published_parent_denominators[
+    published_parent_denominators$year == 2023L,
+    ,
+    drop = FALSE
+  ],
+  microdata_parent_denominators[
+    microdata_parent_denominators$year == 2023L,
+    c("year", "sex", "parent_count"),
+    drop = FALSE
+  ],
+  by = c("year", "sex"),
+  suffixes = c("_published", "_reconstructed")
+)
+parent_denominator_validation$relative_difference <- with(
+  parent_denominator_validation,
+  (parent_count_reconstructed - parent_count_published) /
+    parent_count_published
+)
+stopifnot(
+  nrow(parent_denominator_validation) == 2L,
+  max(abs(parent_denominator_validation$relative_difference)) < 0.001
+)
+
+published_parent_denominators$source_method <-
+  "Published Census CPS ASEC historical Table AD-2"
+published_parent_denominators$source_url <- census_historical_parent_url
+published_parent_denominators$source_file_md5 <- unname(
+  tools::md5sum(census_historical_parent_file)
+)
+
+recent_parent_denominators <- microdata_parent_denominators[
+  microdata_parent_denominators$year %in% 2024:2025,
+  ,
+  drop = FALSE
+]
+recent_parent_denominators$source_method <- paste(
+  "Derived from Census CPS ASEC public-use person records",
+  "using child-to-parent pointers and MARSUPWT"
+)
+
+parent_denominators <- rbind(
+  published_parent_denominators[, c(
+    "year",
+    "sex",
+    "parent_count",
+    "source_method",
+    "source_url",
+    "source_file_md5"
+  )],
+  recent_parent_denominators[, c(
+    "year",
+    "sex",
+    "parent_count",
+    "source_method",
+    "source_url",
+    "source_file_md5"
+  )]
+)
+parent_denominators <- parent_denominators[
+  order(parent_denominators$year, parent_denominators$sex),
+  ,
+  drop = FALSE
+]
+parent_denominators$denominator_definition <- paste(
+  "People with at least one coresident, never-married biological, step,",
+  "or adopted child under age 18"
+)
+
+stopifnot(
+  nrow(parent_denominators) == 2L * length(analysis_years),
+  identical(sort(unique(parent_denominators$year)), analysis_years),
+  all(parent_denominators$parent_count > 0)
+)
+
+parent_denominator_csv <- file.path(
+  "data",
+  "processed",
+  sprintf(
+    "census_coresident_parent_denominators_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+parent_denominator_validation_csv <- file.path(
+  output_directory,
+  "census_parent_denominator_method_validation_2023.csv"
+)
+utils::write.csv(
+  parent_denominators,
+  parent_denominator_csv,
+  row.names = FALSE,
+  na = ""
+)
+utils::write.csv(
+  parent_denominator_validation,
+  parent_denominator_validation_csv,
+  row.names = FALSE,
+  na = ""
+)
+```
+
+```{r population-denominated-rates}
+annual_filicide_counts <- do.call(
+  rbind,
+  lapply(seq_along(analysis_years), function(year_index) {
+    data.frame(
+      year = analysis_years[[year_index]],
+      sex = c("male", "female"),
+      filicide_offender_records = c(
+        unname(annual_counts[[year_index]]$filicide_under_18[["male"]]),
+        unname(annual_counts[[year_index]]$filicide_under_18[["female"]])
+      ),
+      stringsAsFactors = FALSE
+    )
+  })
+)
+
+population_rate_data <- merge(
+  annual_filicide_counts,
+  parent_denominators,
+  by = c("year", "sex"),
+  all.x = TRUE,
+  sort = TRUE
+)
+population_rate_data$reported_records_per_million_parent_years <- with(
+  population_rate_data,
+  filicide_offender_records / parent_count * 1000000
+)
+
+population_rate_csv <- file.path(
+  output_directory,
+  sprintf(
+    "population_denominated_filicide_rates_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+utils::write.csv(
+  population_rate_data,
+  population_rate_csv,
+  row.names = FALSE,
+  na = ""
+)
+
+population_rate_totals <- stats::aggregate(
+  cbind(filicide_offender_records, parent_count) ~ sex,
+  data = population_rate_data,
+  FUN = sum
+)
+population_rate_totals$reported_records_per_million_parent_years <- with(
+  population_rate_totals,
+  filicide_offender_records / parent_count * 1000000
+)
+
+female_population_rate <- population_rate_totals[
+  population_rate_totals$sex == "female",
+  ,
+  drop = FALSE
+]
+male_population_rate <- population_rate_totals[
+  population_rate_totals$sex == "male",
+  ,
+  drop = FALSE
+]
+population_rate_test <- stats::poisson.test(
+  x = c(
+    female_population_rate$filicide_offender_records,
+    male_population_rate$filicide_offender_records
+  ),
+  T = c(
+    female_population_rate$parent_count,
+    male_population_rate$parent_count
+  )
+)
+
+# Annual counts show more variability than a simple Poisson model allows.
+# Estimate a common sex rate ratio with year fixed effects and use a
+# quasi-Poisson scale correction for inference.
+population_rate_model_data <- population_rate_data[, c(
+  "year",
+  "sex",
+  "filicide_offender_records",
+  "parent_count"
+)]
+population_rate_model_data$sex <- stats::relevel(
+  factor(population_rate_model_data$sex),
+  ref = "male"
+)
+population_rate_poisson_model <- stats::glm(
+  filicide_offender_records ~ sex + factor(year) + offset(log(parent_count)),
+  family = stats::poisson(),
+  data = population_rate_model_data
+)
+population_rate_quasipoisson_model <- stats::glm(
+  filicide_offender_records ~ sex + factor(year) + offset(log(parent_count)),
+  family = stats::quasipoisson(),
+  data = population_rate_model_data
+)
+population_rate_quasi_summary <- summary(population_rate_quasipoisson_model)
+population_rate_sex_coefficient <- "sexfemale"
+population_rate_log_ratio <- stats::coef(
+  population_rate_quasipoisson_model
+)[[population_rate_sex_coefficient]]
+population_rate_log_ratio_se <- population_rate_quasi_summary$coefficients[
+  population_rate_sex_coefficient,
+  "Std. Error"
+]
+population_rate_residual_df <- stats::df.residual(
+  population_rate_quasipoisson_model
+)
+population_rate_t_critical <- stats::qt(
+  0.975,
+  df = population_rate_residual_df
+)
+population_rate_adjusted_ratio <- exp(population_rate_log_ratio)
+population_rate_adjusted_ci <- exp(c(
+  population_rate_log_ratio -
+    population_rate_t_critical * population_rate_log_ratio_se,
+  population_rate_log_ratio +
+    population_rate_t_critical * population_rate_log_ratio_se
+))
+population_rate_adjusted_p_value <- population_rate_quasi_summary$coefficients[
+  population_rate_sex_coefficient,
+  "Pr(>|t|)"
+]
+population_rate_overdispersion <- population_rate_quasi_summary$dispersion
+population_rate_poisson_gof_p_value <- stats::pchisq(
+  stats::deviance(population_rate_poisson_model),
+  df = stats::df.residual(population_rate_poisson_model),
+  lower.tail = FALSE
+)
+
+female_other_homicide_records <-
+  unname(pooled_counts$general_homicide[["female"]]) -
+  unname(pooled_counts$filicide_under_18[["female"]])
+male_other_homicide_records <-
+  unname(pooled_counts$general_homicide[["male"]]) -
+  unname(pooled_counts$filicide_under_18[["male"]])
+conditional_homicide_odds_ratio <-
+  (
+    unname(pooled_counts$filicide_under_18[["female"]]) /
+      female_other_homicide_records
+  ) /
+  (
+    unname(pooled_counts$filicide_under_18[["male"]]) /
+      male_other_homicide_records
+  )
+
+population_rate_summary <- data.frame(
+  analysis_start_year = analysis_start_year,
+  analysis_end_year = analysis_end_year,
+  female_filicide_offender_records =
+    female_population_rate$filicide_offender_records,
+  male_filicide_offender_records =
+    male_population_rate$filicide_offender_records,
+  female_coresident_parent_years = female_population_rate$parent_count,
+  male_coresident_parent_years = male_population_rate$parent_count,
+  female_reported_records_per_million_parent_years =
+    female_population_rate$reported_records_per_million_parent_years,
+  male_reported_records_per_million_parent_years =
+    male_population_rate$reported_records_per_million_parent_years,
+  female_to_male_rate_ratio = unname(population_rate_test$estimate),
+  poisson_count_only_ci_lower = population_rate_test$conf.int[[1L]],
+  poisson_count_only_ci_upper = population_rate_test$conf.int[[2L]],
+  poisson_count_only_p_value = population_rate_test$p.value,
+  male_to_female_rate_ratio = 1 / unname(population_rate_test$estimate),
+  year_adjusted_quasipoisson_female_to_male_rate_ratio =
+    population_rate_adjusted_ratio,
+  quasipoisson_dispersion_adjusted_ci_lower =
+    population_rate_adjusted_ci[[1L]],
+  quasipoisson_dispersion_adjusted_ci_upper =
+    population_rate_adjusted_ci[[2L]],
+  quasipoisson_dispersion_adjusted_p_value =
+    population_rate_adjusted_p_value,
+  quasipoisson_dispersion = population_rate_overdispersion,
+  poisson_deviance_goodness_of_fit_p_value =
+    population_rate_poisson_gof_p_value,
+  conditional_homicide_composition_odds_ratio =
+    conditional_homicide_odds_ratio,
+  stringsAsFactors = FALSE
+)
+
+population_rate_summary_csv <- file.path(
+  output_directory,
+  sprintf(
+    "population_denominated_filicide_rate_ratio_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+utils::write.csv(
+  population_rate_summary,
+  population_rate_summary_csv,
+  row.names = FALSE,
+  na = ""
+)
+```
+
+```{r population-rate-table, echo=FALSE}
+population_rate_display <- data.frame(
+  Parent = c("Mothers", "Fathers"),
+  `Reported offender records` = format(
+    c(
+      female_population_rate$filicide_offender_records,
+      male_population_rate$filicide_offender_records
+    ),
+    big.mark = ","
+  ),
+  `Parent-years` = format(
+    round(c(
+      female_population_rate$parent_count,
+      male_population_rate$parent_count
+    )),
+    big.mark = ","
+  ),
+  `Reported records per million parent-years` = sprintf(
+    "%.2f",
+    c(
+      female_population_rate$reported_records_per_million_parent_years,
+      male_population_rate$reported_records_per_million_parent_years
+    )
+  ),
+  check.names = FALSE
+)
+knitr::kable(
+  population_rate_display,
+  align = c("l", "r", "r", "r"),
+  caption = paste(
+    "Reported under-18 filicide offender records per national coresident",
+    "parent-years, 2016-2025"
+  )
+)
+```
+
+The pooled mother:father rate ratio is
+`r sprintf("%.2f", population_rate_summary$female_to_male_rate_ratio)`
+and the year-adjusted quasi-Poisson estimate is
+`r sprintf("%.2f", population_rate_summary$year_adjusted_quasipoisson_female_to_male_rate_ratio)`
+(dispersion-adjusted 95% CI
+`r sprintf("%.2f", population_rate_summary$quasipoisson_dispersion_adjusted_ci_lower)`--
+`r sprintf("%.2f", population_rate_summary$quasipoisson_dispersion_adjusted_ci_upper)`).
+Equivalently, the recorded rate using this denominator is
+`r sprintf("%.2f", population_rate_summary$male_to_female_rate_ratio)` times
+as high for fathers as for mothers. A simple Poisson model is overdispersed
+(dispersion `r sprintf("%.2f", population_rate_summary$quasipoisson_dispersion)`;
+deviance goodness-of-fit
+$p=$ `r sprintf("%.3f", population_rate_summary$poisson_deviance_goodness_of_fit_p_value)`),
+which is why the quasi-Poisson interval is primary. It still treats the Census
+denominator estimates as fixed and does not represent uncertainty from SHR
+undercoverage, relationship missingness, the national/reporting-jurisdiction
+mismatch, or the exclusion of nonresident parents.
+
 ## Figures
 
 The primary figure separates three quantities that should not be conflated:
@@ -1724,4 +2305,233 @@ save_figure_pair(
   height = 6.5
 )
 unknown_sex_figure
+```
+
+### Why the denominator changes the conclusion
+
+```{r denominator-contrast-figure, echo=FALSE, fig.width=14, fig.height=6.8, out.width="100%", fig.alt="Two-panel chart contrasting a female-to-male odds ratio of 7.64 among homicide offender records with a year-adjusted mother-to-father population rate ratio of 0.78 after using Census coresident-parent denominators."}
+sex_palette <- c(female = "#B33C4A", male = "#32689B")
+
+composition_plot_data <- data.frame(
+  sex = factor(c("female", "male"), levels = c("male", "female")),
+  display_sex = factor(
+    c("Female", "Male"),
+    levels = c("Male", "Female")
+  ),
+  filicide_records = c(
+    unname(pooled_counts$filicide_under_18[["female"]]),
+    unname(pooled_counts$filicide_under_18[["male"]])
+  ),
+  other_homicide_records = c(
+    female_other_homicide_records,
+    male_other_homicide_records
+  ),
+  stringsAsFactors = FALSE
+)
+composition_plot_data$filicide_per_100_other_homicide <- with(
+  composition_plot_data,
+  100 * filicide_records / other_homicide_records
+)
+composition_plot_data$value_label <- with(
+  composition_plot_data,
+  sprintf(
+    "%.2f\n%s / %s records",
+    filicide_per_100_other_homicide,
+    format(filicide_records, big.mark = ","),
+    format(other_homicide_records, big.mark = ",")
+  )
+)
+composition_plot_data$label_x <- ifelse(
+  composition_plot_data$sex == "male",
+  2.2,
+  composition_plot_data$filicide_per_100_other_homicide
+)
+
+composition_panel <- ggplot2::ggplot(
+  composition_plot_data,
+  ggplot2::aes(
+    y = display_sex,
+    x = filicide_per_100_other_homicide,
+    color = sex
+  )
+) +
+  ggplot2::geom_segment(
+    ggplot2::aes(
+      x = 0,
+      xend = filicide_per_100_other_homicide,
+      yend = display_sex
+    ),
+    linewidth = 2,
+    alpha = 0.72
+  ) +
+  ggplot2::geom_point(size = 7) +
+  ggplot2::geom_text(
+    ggplot2::aes(
+      x = label_x,
+      label = value_label
+    ),
+    hjust = 0.5,
+    vjust = -0.75,
+    lineheight = 0.95,
+    size = 4.2,
+    fontface = "bold",
+    show.legend = FALSE
+  ) +
+  ggplot2::scale_color_manual(values = sex_palette) +
+  ggplot2::scale_x_continuous(
+    limits = c(0, 12),
+    breaks = c(0, 2.5, 5, 7.5, 10),
+    expand = ggplot2::expansion(mult = c(0, 0))
+  ) +
+  ggplot2::labs(
+    title = "A. Composition among homicide records",
+    subtitle = sprintf(
+      "Female:male conditional odds ratio = %.2f\u00d7",
+      conditional_homicide_odds_ratio
+    ),
+    x = "Filicide records per 100 other-homicide records",
+    y = NULL,
+    color = NULL
+  ) +
+  publication_theme(base_size = 13) +
+  ggplot2::theme(legend.position = "none")
+
+rate_plot_data <- population_rate_totals
+rate_plot_data$display_sex <- factor(
+  ifelse(rate_plot_data$sex == "female", "Mothers", "Fathers"),
+  levels = c("Fathers", "Mothers")
+)
+rate_plot_data$value_label <- with(
+  rate_plot_data,
+  sprintf(
+    "%.2f\n%s / %.1fM parent-years",
+    reported_records_per_million_parent_years,
+    format(filicide_offender_records, big.mark = ","),
+    parent_count / 1000000
+  )
+)
+rate_plot_data$label_x <- ifelse(
+  rate_plot_data$sex == "male",
+  5.65,
+  rate_plot_data$reported_records_per_million_parent_years
+)
+
+population_rate_panel <- ggplot2::ggplot(
+  rate_plot_data,
+  ggplot2::aes(
+    y = display_sex,
+    x = reported_records_per_million_parent_years,
+    color = sex
+  )
+) +
+  ggplot2::geom_segment(
+    ggplot2::aes(
+      x = 0,
+      xend = reported_records_per_million_parent_years,
+      yend = display_sex
+    ),
+    linewidth = 2,
+    alpha = 0.72
+  ) +
+  ggplot2::geom_point(size = 7) +
+  ggplot2::geom_text(
+    ggplot2::aes(
+      x = label_x,
+      label = value_label
+    ),
+    hjust = 0.5,
+    vjust = -0.75,
+    lineheight = 0.95,
+    size = 4.2,
+    fontface = "bold",
+    show.legend = FALSE
+  ) +
+  ggplot2::scale_color_manual(values = sex_palette) +
+  ggplot2::scale_x_continuous(
+    limits = c(0, 7.4),
+    breaks = 0:7,
+    expand = ggplot2::expansion(mult = c(0, 0))
+  ) +
+  ggplot2::labs(
+    title = "B. Rate using parent-population exposure",
+    subtitle = sprintf(
+      "Year-adjusted mother:father rate ratio = %.2f\u00d7 (95%% CI %.2f-%.2f)",
+      population_rate_summary$year_adjusted_quasipoisson_female_to_male_rate_ratio,
+      population_rate_summary$quasipoisson_dispersion_adjusted_ci_lower,
+      population_rate_summary$quasipoisson_dispersion_adjusted_ci_upper
+    ),
+    x = "Reported records per million coresident parent-years",
+    y = NULL,
+    color = NULL
+  ) +
+  publication_theme(base_size = 13) +
+  ggplot2::theme(legend.position = "none")
+
+denominator_contrast_figure <- patchwork::wrap_plots(
+  composition_panel,
+  population_rate_panel,
+  ncol = 2,
+  widths = c(1, 1)
+) +
+  patchwork::plot_annotation(
+    title = paste(
+      "A large homicide-composition odds ratio does not mean mothers have",
+      "a higher population rate"
+    ),
+    subtitle = sprintf(
+      paste(
+        "%d-%d FBI SHR parent/stepparent offender records with a",
+        "first-listed victim under age 18"
+      ),
+      analysis_start_year,
+      analysis_end_year
+    ),
+    caption = paste(
+      paste(
+        strwrap(
+          paste(
+            "Panel A conditions on being a known-sex homicide offender",
+            "record; Panel B uses U.S. Census CPS ASEC estimates of parents",
+            "with a coresident child under 18. The Panel B interval comes",
+            "from a year-adjusted quasi-Poisson model, scaled for",
+            "extra-Poisson variation, and treats denominator estimates as",
+            "fixed."
+          ),
+          width = 170
+        ),
+        collapse = "\n"
+      ),
+      paste(
+        strwrap(
+          paste(
+            "Rates remain descriptive: SHR undercoverage, missing",
+            "relationships, national-versus-reporting-jurisdiction mismatch,",
+            "nonresident-parent exclusion, and offender-record rather than",
+            "unique-person counting prevent interpretation as an individual's",
+            "probability."
+          ),
+          width = 170
+        ),
+        collapse = "\n"
+      ),
+      sep = "\n"
+    ),
+    theme = ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 17),
+      plot.subtitle = ggplot2::element_text(size = 12, color = "grey30"),
+      plot.caption = ggplot2::element_text(
+        color = "grey35",
+        hjust = 0,
+        size = 9.5
+      )
+    )
+  )
+
+save_figure_pair(
+  denominator_contrast_figure,
+  "figure_5_denominator_contrast_2016_2025",
+  width = 14,
+  height = 6.8
+)
+denominator_contrast_figure
 ```

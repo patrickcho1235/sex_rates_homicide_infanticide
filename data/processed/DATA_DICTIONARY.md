@@ -47,3 +47,21 @@ The tidy file preserves raw offender sex and victim age codes for auditing.
 Counts in all filicide files are restricted to first-listed victims because
 the fixed-width SHR master layout does not provide relationships for additional
 victims.
+
+## Census coresident-parent denominator file
+
+`census_coresident_parent_denominators_2016_2025.csv` contains one row per
+year and parent sex:
+
+- `parent_count`: estimated number of people with at least one coresident,
+  never-married biological, step, or adopted child under age 18.
+- `source_method`: distinguishes published Census CPS ASEC Table AD-2 values
+  (2016-2023) from estimates reconstructed from CPS ASEC person records using
+  child-to-parent pointers and `MARSUPWT` (2024-2025).
+- `source_url`: official Census workbook or public-use microdata URL.
+- `source_file_md5`: checksum of the cached source file used when knitting.
+- `denominator_definition`: the denominator universe in plain language.
+
+These counts represent unique coresident parents in each survey year, not
+parent-child dyads. They exclude nonresident parents and should not be treated
+as a perfect exposure match for the SHR numerator.

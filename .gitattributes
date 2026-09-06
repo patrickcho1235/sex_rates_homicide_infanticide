@@ -5,5 +5,7 @@
 *.py text eol=lf
 *.svg text eol=lf
 *.zip binary
+*.gz binary
+*.xls binary
 *.png binary
 *.html text eol=lf
