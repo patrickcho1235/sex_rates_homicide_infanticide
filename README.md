@@ -8,6 +8,41 @@ The project does **not** analyze any individual criminal case. Its purpose is
 to make the base-rate evidence and its limitations clear enough for public
 discussion.
 
+## Main finding
+
+Relative to the sex gap in homicide offending generally, women's recorded
+offending rate rises sharply when the victim is their child. From 2016 through
+2025, the year-adjusted mother:father filicide rate ratio was 0.785, compared
+with a female:male general-homicide rate ratio of 0.134. The ratio of those
+rate ratios was **5.87** (95% CI 5.05-6.83): women's relative rate, compared
+with men's, was 5.87 times as high for filicide as for homicide generally.
+
+[![Main result: the female-to-male rate ratio is 5.87 times as high for filicide as for homicide generally](output/figures/figure_9_relative_female_filicide_elevation_2016_2025.png)](output/figures/figure_9_relative_female_filicide_elevation_2016_2025.png)
+
+The 5.87-fold result is a comparison with the ordinary homicide sex gap. The
+population-denominated filicide rates themselves were 4.82 records per million
+coresident mother-years and 6.15 per million coresident father-years. Thus,
+the available data show dramatically greater *relative female involvement* in
+filicide, not a higher absolute mother than father rate under this denominator.
+
+### Supporting figures
+
+Figure 1 shows the raw sex composition for each victim-age group alongside
+the year-adjusted comparison with all other homicide.
+
+[![Female composition and comparative odds across homicide and filicide victim-age groups](output/figures/figure_1_primary_comparison_2016_2025.png)](output/figures/figure_1_primary_comparison_2016_2025.png)
+
+Figure 6 expresses the same concentration in a direct frequency format: how
+often an under-18 filicide record appears within female and male homicide
+offender records.
+
+[![Conditional frequency of under-18 filicide within female and male homicide offender records](output/figures/figure_6_conditional_waffle_2016_2025.png)](output/figures/figure_6_conditional_waffle_2016_2025.png)
+
+Figure 7 keeps the conditional homicide-record comparison and the
+parent-population rate comparison visible together.
+
+[![Conditional homicide-record odds and parent-population rate comparison](output/figures/figure_7_denominator_switch_2016_2025.png)](output/figures/figure_7_denominator_switch_2016_2025.png)
+
 ## Current outputs
 
 The primary RStudio workflow writes these finished deliverables to `output/`:
