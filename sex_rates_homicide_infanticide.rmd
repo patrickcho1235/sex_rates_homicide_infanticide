@@ -1190,10 +1190,12 @@ cell-level diagnostics, and missingness sensitivity table are written to the
 
 ## Figures
 
-The primary figure pairs the directly interpretable female proportion with the
-year-adjusted odds ratio. The odds-ratio axis is logarithmic so equal distances
-represent equal multiplicative changes. All error bars are 95% confidence
-intervals; the proportion intervals are Wilson intervals and the odds-ratio
+The primary figure separates three quantities that should not be conflated:
+the female proportion, the female:male ratio within each group, and the
+year-adjusted odds ratio comparing that composition with other homicide. The
+two odds axes are logarithmic so equal distances represent equal
+multiplicative changes. All error bars are 95% confidence intervals; the
+proportion intervals are Wilson intervals and the adjusted odds-ratio
 intervals use source-record-clustered standard errors.
 
 ```{r figure-setup, include=FALSE}
@@ -1269,7 +1271,7 @@ save_figure_pair <- function(plot, filename_stub, width, height) {
 
 ### Primary comparison
 
-```{r primary-comparison-figure, echo=FALSE, fig.width=13, fig.height=6.5, out.width="100%", fig.alt="Two-panel chart comparing female offender proportions and adjusted female-to-male odds ratios across six filicide victim-age groups."}
+```{r primary-comparison-figure, echo=FALSE, fig.width=17, fig.height=7.3, out.width="100%", fig.alt="Three-panel chart showing female offender proportions, actual within-group female-to-male ratios, and adjusted odds ratios versus other homicide across six filicide victim-age groups."}
 primary_plot_data <- inferential_results[
   inferential_results$homicide_group %in% filicide_detailed_subtype_ids,
   ,
@@ -1279,7 +1281,18 @@ primary_plot_data$age_label <- factor(
   unname(age_figure_labels[primary_plot_data$homicide_group]),
   levels = age_figure_levels
 )
+primary_plot_data$raw_odds_ci_lower <- with(
+  primary_plot_data,
+  female_proportion_ci_lower / (1 - female_proportion_ci_lower)
+)
+primary_plot_data$raw_odds_ci_upper <- with(
+  primary_plot_data,
+  female_proportion_ci_upper / (1 - female_proportion_ci_upper)
+)
 other_homicide_female_proportion <- inferential_results$female_proportion_known_sex[
+  inferential_results$homicide_group == "other_homicide"
+]
+other_homicide_female_to_male_odds <- inferential_results$female_to_male_odds[
   inferential_results$homicide_group == "other_homicide"
 ]
 
@@ -1306,7 +1319,7 @@ primary_proportion_plot <- ggplot2::ggplot(
   ggplot2::geom_point(size = 3.1, color = "#0072B2") +
   ggplot2::geom_text(
     ggplot2::aes(
-      x = 0.785,
+      x = 0.88,
       label = scales::percent(female_proportion_known_sex, accuracy = 0.1)
     ),
     hjust = 1,
@@ -1316,7 +1329,7 @@ primary_proportion_plot <- ggplot2::ggplot(
   ggplot2::scale_x_continuous(
     labels = scales::label_percent(accuracy = 1),
     breaks = seq(0, 0.8, by = 0.2),
-    limits = c(0, 0.8),
+    limits = c(0, 0.9),
     expand = ggplot2::expansion(mult = c(0, 0.02))
   ) +
   ggplot2::labs(
@@ -1328,6 +1341,62 @@ primary_proportion_plot <- ggplot2::ggplot(
     x = "Female share among known-sex offender records"
   ) +
   publication_theme()
+
+primary_raw_odds_plot <- ggplot2::ggplot(
+  primary_plot_data,
+  ggplot2::aes(y = age_label, x = female_to_male_odds)
+) +
+  ggplot2::geom_vline(
+    xintercept = other_homicide_female_to_male_odds,
+    linetype = "dotted",
+    color = "grey35",
+    linewidth = 0.7
+  ) +
+  ggplot2::geom_vline(
+    xintercept = 1,
+    linetype = "solid",
+    color = "grey50",
+    linewidth = 0.6
+  ) +
+  ggplot2::geom_errorbar(
+    ggplot2::aes(
+      xmin = raw_odds_ci_lower,
+      xmax = raw_odds_ci_upper
+    ),
+    orientation = "y",
+    width = 0.16,
+    linewidth = 0.7,
+    color = "#5B4B8A"
+  ) +
+  ggplot2::geom_point(size = 3.1, color = "#7B61A8") +
+  ggplot2::geom_text(
+    ggplot2::aes(
+      x = 4.7,
+      label = sprintf("%.2f:1", female_to_male_odds)
+    ),
+    hjust = 1,
+    size = 3.3,
+    color = "#47336E"
+  ) +
+  ggplot2::scale_x_log10(
+    breaks = c(0.125, 0.25, 0.5, 1, 2),
+    labels = c("0.125", "0.25", "0.5", "1", "2"),
+    limits = c(0.1, 5),
+    expand = ggplot2::expansion(mult = c(0, 0.02))
+  ) +
+  ggplot2::labs(
+    title = "B. Actual female:male ratio",
+    subtitle = sprintf(
+      "1 = parity; dotted line: other homicide (%.3f:1)",
+      other_homicide_female_to_male_odds
+    ),
+    x = "Female records per male record (log scale)"
+  ) +
+  publication_theme() +
+  ggplot2::theme(
+    axis.text.y = ggplot2::element_blank(),
+    axis.ticks.y = ggplot2::element_blank()
+  )
 
 primary_or_plot <- ggplot2::ggplot(
   primary_plot_data,
@@ -1355,22 +1424,22 @@ primary_or_plot <- ggplot2::ggplot(
   ggplot2::geom_point(size = 3.1, color = "#D55E00") +
   ggplot2::geom_text(
     ggplot2::aes(
-      x = cluster_robust_ci_upper * 1.08,
-      label = sprintf("%.2f", adjusted_odds_ratio_vs_other_homicide)
+      x = 42,
+      label = sprintf("%.2f\u00d7", adjusted_odds_ratio_vs_other_homicide)
     ),
-    hjust = 0,
+    hjust = 1,
     size = 3.4,
     color = "#713000"
   ) +
   ggplot2::scale_x_log10(
     breaks = c(1, 2, 5, 10, 20),
     labels = c("1", "2", "5", "10", "20"),
-    limits = c(0.9, 30),
+    limits = c(0.9, 45),
     expand = ggplot2::expansion(mult = c(0, 0.02))
   ) +
   ggplot2::labs(
-    title = "B. Adjusted female:male odds ratio",
-    subtitle = "Reference: all other homicide; adjusted for data year",
+    title = "C. Adjusted comparative odds ratio",
+    subtitle = "Relative to other homicide; not a within-group ratio",
     x = "Odds ratio (log scale)"
   ) +
   publication_theme() +
@@ -1381,27 +1450,30 @@ primary_or_plot <- ggplot2::ggplot(
 
 primary_comparison_figure <- patchwork::wrap_plots(
   primary_proportion_plot,
+  primary_raw_odds_plot,
   primary_or_plot,
-  ncol = 2,
-  widths = c(1.05, 0.95)
+  ncol = 3,
+  widths = c(1.12, 0.98, 0.9)
 ) +
   patchwork::plot_annotation(
     title = sprintf(
-      "Recorded offender-sex composition in filicide, %d-%d",
+      "Female representation in filicide relative to other homicide, %d-%d",
       analysis_start_year,
       analysis_end_year
     ),
-    caption = paste(
-      "Points show estimates; bars show 95% confidence intervals.",
-      "Proportions exclude unknown/not-specified sex.",
-      "Odds-ratio intervals use SHR source-record-clustered standard errors."
+    caption = paste0(
+      "Birth-6 days illustrates the distinction: 61 female / 31 male = ",
+      "1.97:1 within the group, whereas the adjusted comparative OR is ",
+      "15.80 because other homicide is strongly male-dominated ",
+      "(16,606 female / 130,486 male = 0.127:1).\n",
+      "Points show estimates; bars show 95% confidence intervals."
     ),
     theme = ggplot2::theme(
       plot.title = ggplot2::element_text(face = "bold", size = 16),
       plot.caption = ggplot2::element_text(
         color = "grey35",
         hjust = 0,
-        size = 9
+        size = 10
       )
     )
   )
@@ -1409,8 +1481,8 @@ primary_comparison_figure <- patchwork::wrap_plots(
 save_figure_pair(
   primary_comparison_figure,
   "figure_1_primary_comparison_2016_2025",
-  width = 13,
-  height = 6.5
+  width = 17,
+  height = 7.3
 )
 primary_comparison_figure
 ```

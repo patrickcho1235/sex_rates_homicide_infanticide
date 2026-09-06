@@ -33,8 +33,9 @@ The primary RStudio workflow writes these finished deliverables to `output/`:
   heterogeneity.
 - `inferential_model_leave_one_year_out_2016_2025.csv`: influence sensitivity
   estimates obtained by omitting each data year in turn.
-- `figures/figure_1_primary_comparison_2016_2025.{png,svg}`: female-proportion
-  and adjusted-odds-ratio panels for the primary comparison.
+- `figures/figure_1_primary_comparison_2016_2025.{png,svg}`: linked panels for
+  female proportion, the actual within-group female:male ratio, and the
+  adjusted comparative odds ratio.
 - `figures/figure_2_period_sensitivity_2016_2025.{png,svg}`: adjusted estimates
   for 2016-2020 and 2021-2025.
 - `figures/figure_3_annual_female_proportion_2016_2025.{png,svg}`: annual
