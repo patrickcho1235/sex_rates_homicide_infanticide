@@ -53,6 +53,15 @@ The primary RStudio workflow writes these finished deliverables to `output/`:
 - `figures/figure_5_denominator_contrast_2016_2025.{png,svg}`: contrast between
   the conditional odds among homicide offender records and reported-record
   rates using Census coresident-parent exposure.
+- `figures/figure_6_conditional_waffle_2016_2025.{png,svg}`: one-thousand-dot
+  unit charts showing how concentrated under-18 filicide is within female and
+  male homicide offender records.
+- `figures/figure_7_denominator_switch_2016_2025.{png,svg}`: editorial-style
+  graphic contrasting the 7.64 conditional odds ratio with the 0.78
+  parent-exposure rate ratio.
+- `figures/figure_8_annual_population_rate_dumbbell_2016_2025.{png,svg}`:
+  annual paired rates demonstrating the consistency of the population-
+  denominated direction across all ten years.
 
 Supporting prepared data remain in `data/processed/`:
 

@@ -2535,3 +2535,566 @@ save_figure_pair(
 )
 denominator_contrast_figure
 ```
+
+### Variant A: one-thousand-record dot grids
+
+This unit-chart version makes the conditional homicide-record comparison
+concrete. Each grid represents 1,000 known-sex homicide offender records, not
+1,000 women or men in the population.
+
+```{r conditional-waffle-figure, echo=FALSE, fig.width=14, fig.height=8, out.width="100%", fig.alt="Two one-thousand-dot grids show that approximately 92 of every 1,000 female homicide offender records and 13 of every 1,000 male homicide offender records were classified as under-18 filicide. A side card reports a conditional odds ratio of 7.64."}
+conditional_share_data <- composition_plot_data
+conditional_share_data$total_homicide_records <- with(
+  conditional_share_data,
+  filicide_records + other_homicide_records
+)
+conditional_share_data$filicide_share <- with(
+  conditional_share_data,
+  filicide_records / total_homicide_records
+)
+conditional_share_data$dots_per_thousand <- round(
+  1000 * conditional_share_data$filicide_share
+)
+conditional_proportion_ratio <- with(
+  conditional_share_data,
+  filicide_share[sex == "female"] / filicide_share[sex == "male"]
+)
+
+waffle_dot_data <- do.call(
+  rbind,
+  lapply(seq_len(nrow(conditional_share_data)), function(row_index) {
+    current <- conditional_share_data[row_index, , drop = FALSE]
+    dot_number <- seq_len(1000L)
+    data.frame(
+      sex = as.character(current$sex),
+      display_sex = ifelse(current$sex == "female", "Female", "Male"),
+      x = (dot_number - 1L) %% 40L + 1L,
+      y = 25L - (dot_number - 1L) %/% 40L,
+      dot_type = ifelse(
+        dot_number <= current$dots_per_thousand,
+        as.character(current$sex),
+        "all other homicide"
+      ),
+      stringsAsFactors = FALSE
+    )
+  })
+)
+waffle_dot_data$display_sex <- factor(
+  waffle_dot_data$display_sex,
+  levels = c("Female", "Male")
+)
+
+waffle_facet_labels <- c(
+  Female = sprintf(
+    "FEMALE HOMICIDE RECORDS  |  %d of 1,000",
+    conditional_share_data$dots_per_thousand[
+      conditional_share_data$sex == "female"
+    ]
+  ),
+  Male = sprintf(
+    "MALE HOMICIDE RECORDS  |  %d of 1,000",
+    conditional_share_data$dots_per_thousand[
+      conditional_share_data$sex == "male"
+    ]
+  )
+)
+
+waffle_panel <- ggplot2::ggplot(
+  waffle_dot_data,
+  ggplot2::aes(x = x, y = y, color = dot_type)
+) +
+  ggplot2::geom_point(size = 1.65, alpha = 0.98) +
+  ggplot2::facet_wrap(
+    ~ display_sex,
+    ncol = 1,
+    labeller = ggplot2::as_labeller(waffle_facet_labels)
+  ) +
+  ggplot2::scale_color_manual(
+    values = c(
+      female = sex_palette[["female"]],
+      male = sex_palette[["male"]],
+      `all other homicide` = "#D8D3CB"
+    )
+  ) +
+  ggplot2::coord_equal(clip = "off") +
+  ggplot2::theme_void(base_size = 13) +
+  ggplot2::theme(
+    plot.background = ggplot2::element_rect(fill = "#F7F3EA", color = NA),
+    panel.background = ggplot2::element_rect(fill = "#F7F3EA", color = NA),
+    strip.background = ggplot2::element_blank(),
+    strip.text = ggplot2::element_text(
+      face = "bold",
+      color = "#26231F",
+      hjust = 0,
+      size = 12,
+      margin = ggplot2::margin(b = 5)
+    ),
+    panel.spacing.y = grid::unit(0.45, "in"),
+    legend.position = "none",
+    plot.margin = ggplot2::margin(8, 16, 8, 8)
+  )
+
+waffle_callout_panel <- ggplot2::ggplot() +
+  ggplot2::annotate(
+    "rect",
+    xmin = 0.04,
+    xmax = 0.96,
+    ymin = 0.05,
+    ymax = 0.95,
+    fill = "#252A34",
+    color = NA
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.14,
+    y = 0.84,
+    label = "THE CONDITIONAL CONTRAST",
+    hjust = 0,
+    color = "#F6D365",
+    fontface = "bold",
+    size = 4.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.14,
+    y = 0.67,
+    label = sprintf("%.2f\u00d7", conditional_homicide_odds_ratio),
+    hjust = 0,
+    color = "white",
+    fontface = "bold",
+    size = 15
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.14,
+    y = 0.54,
+    label = "female:male odds ratio",
+    hjust = 0,
+    color = "white",
+    fontface = "bold",
+    size = 4.8
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.14,
+    y = 0.43,
+    label = sprintf("%.2f\u00d7 proportion ratio", conditional_proportion_ratio),
+    hjust = 0,
+    color = "#D8D3CB",
+    size = 4.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.14,
+    y = 0.25,
+    label = paste(
+      "This answers:\nAmong recorded homicide offenders,\nhow concentrated is filicide?"
+    ),
+    hjust = 0,
+    vjust = 0.5,
+    lineheight = 1.08,
+    color = "white",
+    size = 4.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.14,
+    y = 0.10,
+    label = "It does not compare all women with all men.",
+    hjust = 0,
+    color = "#F6D365",
+    fontface = "bold",
+    size = 3.8
+  ) +
+  ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
+  ggplot2::theme_void() +
+  ggplot2::theme(
+    plot.background = ggplot2::element_rect(fill = "#F7F3EA", color = NA),
+    plot.margin = ggplot2::margin(8, 8, 8, 8)
+  )
+
+conditional_waffle_figure <- patchwork::wrap_plots(
+  waffle_panel,
+  waffle_callout_panel,
+  ncol = 2,
+  widths = c(1.45, 0.75)
+) +
+  patchwork::plot_annotation(
+    title = "Filicide is far more concentrated among female homicide records",
+    subtitle = paste(
+      "Each grid represents 1,000 known-sex homicide offender records;",
+      "colored dots are under-18 filicide records"
+    ),
+    caption = paste(
+      "Observed counts: female 1,692 of 18,298; male 1,740 of 132,226.",
+      "Dots are rounded to the nearest whole record per 1,000. FBI SHR,",
+      sprintf("%d-%d.", analysis_start_year, analysis_end_year)
+    ),
+    theme = ggplot2::theme(
+      plot.background = ggplot2::element_rect(fill = "#F7F3EA", color = NA),
+      plot.title = ggplot2::element_text(
+        face = "bold",
+        size = 19,
+        color = "#26231F"
+      ),
+      plot.subtitle = ggplot2::element_text(size = 12.5, color = "#56514A"),
+      plot.caption = ggplot2::element_text(
+        size = 9.5,
+        color = "#625D55",
+        hjust = 0
+      )
+    )
+  )
+
+save_figure_pair(
+  conditional_waffle_figure,
+  "figure_6_conditional_waffle_2016_2025",
+  width = 14,
+  height = 8
+)
+conditional_waffle_figure
+```
+
+### Variant B: denominator-switch editorial graphic
+
+```{r denominator-switch-figure, echo=FALSE, fig.width=14, fig.height=7.5, out.width="100%", fig.alt="Dark editorial infographic titled The denominator changes the story. A left card shows a 7.64 female-to-male conditional odds ratio within homicide records. A right card shows a 0.78 year-adjusted mother-to-father rate ratio per coresident parent-year."}
+denominator_switch_figure <- ggplot2::ggplot() +
+  ggplot2::annotate(
+    "rect",
+    xmin = 0,
+    xmax = 3,
+    ymin = 0,
+    ymax = 1,
+    fill = "#11151C",
+    color = NA
+  ) +
+  ggplot2::annotate(
+    "rect",
+    xmin = 0.10,
+    xmax = 1.35,
+    ymin = 0.14,
+    ymax = 0.78,
+    fill = "#2B1D25",
+    color = "#B33C4A",
+    linewidth = 0.9
+  ) +
+  ggplot2::annotate(
+    "rect",
+    xmin = 1.65,
+    xmax = 2.90,
+    ymin = 0.14,
+    ymax = 0.78,
+    fill = "#152A39",
+    color = "#4B91C3",
+    linewidth = 0.9
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.10,
+    y = 0.93,
+    label = "THE DENOMINATOR CHANGES THE STORY",
+    hjust = 0,
+    color = "white",
+    fontface = "bold",
+    size = 8.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.10,
+    y = 0.84,
+    label = "Same filicide records. Two different questions. Opposite-looking conclusions.",
+    hjust = 0,
+    color = "#C7CDD6",
+    size = 4.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.20,
+    y = 0.70,
+    label = "CONDITIONAL ON HOMICIDE",
+    hjust = 0,
+    color = "#F3A7AF",
+    fontface = "bold",
+    size = 4.1
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.20,
+    y = 0.57,
+    label = sprintf("%.2f\u00d7", conditional_homicide_odds_ratio),
+    hjust = 0,
+    color = "white",
+    fontface = "bold",
+    size = 14
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.20,
+    y = 0.45,
+    label = "female:male odds of filicide\nversus other homicide",
+    hjust = 0,
+    lineheight = 1.05,
+    color = "white",
+    size = 4.4
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.20,
+    y = 0.27,
+    label = "Female: 1,692 / 16,606\nMale: 1,740 / 130,486",
+    hjust = 0,
+    lineheight = 1.12,
+    color = "#D9C8CC",
+    size = 3.9
+  ) +
+  ggplot2::annotate(
+    "segment",
+    x = 1.40,
+    xend = 1.60,
+    y = 0.46,
+    yend = 0.46,
+    color = "#F6D365",
+    linewidth = 1.4,
+    arrow = grid::arrow(length = grid::unit(0.16, "in"), type = "closed")
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 1.50,
+    y = 0.54,
+    label = "CHANGE\nDENOMINATOR",
+    color = "#F6D365",
+    fontface = "bold",
+    lineheight = 1,
+    size = 3.3
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 1.75,
+    y = 0.70,
+    label = "PER CORESIDENT PARENT-YEAR",
+    hjust = 0,
+    color = "#8EC7EC",
+    fontface = "bold",
+    size = 4.1
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 1.75,
+    y = 0.57,
+    label = sprintf(
+      "%.2f\u00d7",
+      population_rate_summary$year_adjusted_quasipoisson_female_to_male_rate_ratio
+    ),
+    hjust = 0,
+    color = "white",
+    fontface = "bold",
+    size = 14
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 1.75,
+    y = 0.45,
+    label = "year-adjusted mother:father\nreported-record rate ratio",
+    hjust = 0,
+    lineheight = 1.05,
+    color = "white",
+    size = 4.4
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 1.75,
+    y = 0.27,
+    label = sprintf(
+      "Mothers: %.2f per million\nFathers: %.2f per million",
+      female_population_rate$reported_records_per_million_parent_years,
+      male_population_rate$reported_records_per_million_parent_years
+    ),
+    hjust = 0,
+    lineheight = 1.12,
+    color = "#C8D9E5",
+    size = 3.9
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 0.10,
+    y = 0.065,
+    label = paste(
+      "The first number describes homicide composition—not population risk.",
+      "The second is a bounded reported-record rate using national coresident-parent exposure."
+    ),
+    hjust = 0,
+    color = "#F6D365",
+    fontface = "bold",
+    size = 3.7
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 2.90,
+    y = 0.015,
+    label = sprintf("FBI SHR + Census CPS ASEC | %d-%d", analysis_start_year, analysis_end_year),
+    hjust = 1,
+    color = "#858E9B",
+    size = 3.1
+  ) +
+  ggplot2::coord_cartesian(xlim = c(0, 3), ylim = c(0, 1), clip = "off") +
+  ggplot2::theme_void() +
+  ggplot2::theme(
+    plot.background = ggplot2::element_rect(fill = "#11151C", color = NA),
+    panel.background = ggplot2::element_rect(fill = "#11151C", color = NA),
+    plot.margin = ggplot2::margin(12, 12, 12, 12)
+  )
+
+save_figure_pair(
+  denominator_switch_figure,
+  "figure_7_denominator_switch_2016_2025",
+  width = 14,
+  height = 7.5
+)
+denominator_switch_figure
+```
+
+### Variant C: annual population-rate dumbbell
+
+```{r annual-population-dumbbell-figure, echo=FALSE, fig.width=12, fig.height=8, out.width="95%", fig.alt="Annual dumbbell plot showing lower reported under-18 filicide offender-record rates for mothers than fathers in every year from 2016 through 2025 when divided by national coresident-parent estimates."}
+annual_rate_wide <- reshape(
+  population_rate_data[, c(
+    "year",
+    "sex",
+    "reported_records_per_million_parent_years"
+  )],
+  idvar = "year",
+  timevar = "sex",
+  direction = "wide"
+)
+names(annual_rate_wide) <- sub(
+  "^reported_records_per_million_parent_years\\.",
+  "rate_",
+  names(annual_rate_wide)
+)
+annual_rate_wide$year_label <- as.character(annual_rate_wide$year)
+annual_rate_wide$is_pooled <- FALSE
+
+pooled_rate_wide <- data.frame(
+  year = NA_integer_,
+  rate_female = female_population_rate$reported_records_per_million_parent_years,
+  rate_male = male_population_rate$reported_records_per_million_parent_years,
+  year_label = "2016-2025 pooled",
+  is_pooled = TRUE
+)
+annual_rate_wide <- rbind(annual_rate_wide, pooled_rate_wide)
+annual_rate_wide$year_label <- factor(
+  annual_rate_wide$year_label,
+  levels = c(
+    "2016-2025 pooled",
+    rev(as.character(analysis_years))
+  )
+)
+
+annual_rate_long <- rbind(
+  data.frame(
+    year_label = annual_rate_wide$year_label,
+    is_pooled = annual_rate_wide$is_pooled,
+    sex = "female",
+    rate = annual_rate_wide$rate_female
+  ),
+  data.frame(
+    year_label = annual_rate_wide$year_label,
+    is_pooled = annual_rate_wide$is_pooled,
+    sex = "male",
+    rate = annual_rate_wide$rate_male
+  )
+)
+
+annual_population_dumbbell_figure <- ggplot2::ggplot(
+  annual_rate_wide,
+  ggplot2::aes(y = year_label)
+) +
+  ggplot2::geom_rect(
+    xmin = -Inf,
+    xmax = Inf,
+    ymin = 0.5,
+    ymax = 1.5,
+    inherit.aes = FALSE,
+    fill = "#EFEAE0",
+    color = NA
+  ) +
+  ggplot2::geom_segment(
+    ggplot2::aes(x = rate_female, xend = rate_male, yend = year_label),
+    color = "#A9A39A",
+    linewidth = 1.3
+  ) +
+  ggplot2::geom_point(
+    data = annual_rate_long,
+    ggplot2::aes(x = rate, color = sex, size = is_pooled),
+    alpha = 0.98
+  ) +
+  ggplot2::geom_text(
+    data = annual_rate_long[annual_rate_long$is_pooled, , drop = FALSE],
+    ggplot2::aes(
+      x = rate,
+      label = sprintf("%.2f", rate),
+      color = sex
+    ),
+    nudge_y = 0.27,
+    fontface = "bold",
+    size = 4.3,
+    show.legend = FALSE
+  ) +
+  ggplot2::annotate(
+    "label",
+    x = 8.5,
+    y = factor("2021", levels = levels(annual_rate_wide$year_label)),
+    label = "Fathers had the higher\nreported rate in 10 of 10 years",
+    hjust = 1,
+    color = "#23313C",
+    fill = "#F6D365",
+    label.size = 0,
+    fontface = "bold",
+    lineheight = 1.05,
+    size = 4
+  ) +
+  ggplot2::scale_color_manual(
+    values = sex_palette,
+    labels = c(female = "Mothers", male = "Fathers")
+  ) +
+  ggplot2::scale_size_manual(
+    values = c(`FALSE` = 3.8, `TRUE` = 6),
+    guide = "none"
+  ) +
+  ggplot2::scale_x_continuous(
+    limits = c(0, 9),
+    breaks = 0:9,
+    expand = ggplot2::expansion(mult = c(0, 0))
+  ) +
+  ggplot2::labs(
+    title = "Fathers have the higher population-denominated reported rate every year",
+    subtitle = paste(
+      "Under-18 filicide offender records per million national coresident",
+      "parent-years"
+    ),
+    x = "Reported offender records per million coresident parent-years",
+    y = NULL,
+    color = NULL,
+    caption = paste(
+      "Connected points share the same year. The shaded row is the pooled",
+      sprintf("%d-%d result. Rates inherit the SHR and denominator-scope limitations described in Figure 5.", analysis_start_year, analysis_end_year)
+    )
+  ) +
+  publication_theme(base_size = 13) +
+  ggplot2::theme(
+    panel.grid.major.y = ggplot2::element_blank(),
+    legend.position = "top",
+    legend.justification = "left",
+    plot.title = ggplot2::element_text(size = 17),
+    axis.text.y = ggplot2::element_text(face = "bold"),
+    plot.caption = ggplot2::element_text(hjust = 0, size = 9.2)
+  )
+
+save_figure_pair(
+  annual_population_dumbbell_figure,
+  "figure_8_annual_population_rate_dumbbell_2016_2025",
+  width = 12,
+  height = 8
+)
+annual_population_dumbbell_figure
+```
