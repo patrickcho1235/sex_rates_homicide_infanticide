@@ -1,0 +1,1655 @@
+---
+title: "Sex composition of infant filicide relative to homicide generally"
+author: "ChoJin"
+date: "2026-09-06"
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_dir = file.path(dirname(inputFile), "output")) })
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+options(stringsAsFactors = FALSE, scipen = 6)
+```
+
+## Descriptive question
+
+> How unusual is the sex composition of infant filicide relative to homicide
+> generally?
+
+This first analysis calculates three descriptive quantities for each group:
+
+1. **Proportion female** among offender records with known sex:
+   $F/(F+M)$.
+2. **Female:male odds**: $F/M$.
+3. **Odds ratio relative to general homicide**:
+   $(F_{subtype}/M_{subtype})/(F_{general}/M_{general})$.
+
+The analysis pools the latest ten complete FBI data years, 2016--2025, before
+calculating these quantities. Pooling the counts answers the question about the
+sex composition of the observed offender records across the period. It does
+not average the ten annual percentages.
+
+## Analytic definitions
+
+- The data are the FBI Supplementary Homicide Report (SHR) annual master files
+  stored in `data/raw/fbi_shr/`.
+- General homicide includes records coded murder or nonnegligent manslaughter.
+  SHR circumstance codes 80 and 81, which identify justifiable homicide, are
+  excluded.
+- A filicide group requires a first-listed victim from birth through age 17
+  and a victim-to-offender relationship of son (`SO`), daughter (`DA`),
+  stepson (`SS`), or stepdaughter (`SD`). Thus, parent and stepparent records
+  are included. Infant filicide is the birth-through-364-day subset.
+- The SHR age code `NB` means birth through 6 days; `BB` means 7 through 364
+  days. The combined infant category contains both. Numeric ages 01--17 are
+  grouped as 1--4, 5--9, 10--14, and 15--17 years. The table also includes an
+  all-filicide row covering birth through age 17.
+- The analytic unit is a represented **offender record**, not an incident or a
+  person tracked across incidents. An incident with multiple recorded
+  offenders can contribute multiple offender records.
+- Offender records coded male or female form the denominator for the requested
+  sex-composition measures. Unknown and not-specified sex records are retained
+  as a separate count but excluded from the proportion and odds calculations.
+- In the SHR fixed-width layout, relationships are available for the
+  first-listed victim only. Consequently, the filicide groups do not capture a
+  child listed only as an additional victim in a multi-victim incident.
+
+## Read and parse the FBI SHR files
+
+The archive parsing code uses base R plus `knitr`, which is already used to
+render the document. The inferential section later uses `sandwich` for
+cluster-robust covariance estimation. No Python-generated analytic table is
+imported.
+
+```{r parameters}
+analysis_start_year <- 2016L
+analysis_end_year <- 2025L
+analysis_years <- analysis_start_year:analysis_end_year
+
+shr_directory <- file.path("data", "raw", "fbi_shr")
+output_directory <- "output"
+output_csv <- file.path(
+  output_directory,
+  sprintf(
+    "homicide_subtype_sex_comparison_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+
+record_length <- 268L
+maximum_additional_offenders_in_layout <- 10L
+filicide_relationship_codes <- c("SO", "DA", "SS", "SD")
+sex_levels <- c("male", "female", "unknown/not specified")
+filicide_detailed_subtype_ids <- c(
+  "filicide_birth_through_6_days",
+  "filicide_days_7_through_364",
+  "filicide_years_1_through_4",
+  "filicide_years_5_through_9",
+  "filicide_years_10_through_14",
+  "filicide_years_15_through_17"
+)
+model_group_ids <- c("other_homicide", filicide_detailed_subtype_ids)
+```
+
+```{r parser-functions}
+read_shr_archive <- function(year, directory = shr_directory) {
+  archive <- file.path(directory, sprintf("shr-%d.zip", year))
+  if (!file.exists(archive)) {
+    stop(
+      sprintf(
+        "Missing %s. The FBI SHR archive must be present before knitting.",
+        archive
+      )
+    )
+  }
+
+  members <- utils::unzip(archive, list = TRUE)
+  members <- members[!grepl("/$", members$Name), , drop = FALSE]
+  if (nrow(members) != 1L) {
+    stop(sprintf("Expected one data member in %s; found %d.", archive, nrow(members)))
+  }
+
+  connection <- unz(archive, members$Name[[1L]], open = "rt")
+  on.exit(close(connection), add = TRUE)
+  records <- readLines(connection, warn = FALSE, encoding = "latin1")
+
+  # Legacy DAT files can end with a one-character DOS end-of-file record.
+  records <- records[nchar(records, type = "chars") >= 90L]
+  lengths <- nchar(records, type = "chars")
+  if (any(lengths > record_length)) {
+    stop(sprintf("At least one record in %s exceeds %d characters.", archive, record_length))
+  }
+
+  # Some official mid-2000s files physically omit trailing blank fields.
+  # Right-padding restores the documented logical fixed-width layout.
+  paste0(records, strrep(" ", record_length - lengths))
+}
+
+normalize_sex <- function(raw_code) {
+  ifelse(
+    raw_code == "M",
+    "male",
+    ifelse(raw_code == "F", "female", "unknown/not specified")
+  )
+}
+
+classify_filicide_age <- function(raw_code) {
+  if (raw_code == "NB") {
+    return("filicide_birth_through_6_days")
+  }
+  if (raw_code == "BB") {
+    return("filicide_days_7_through_364")
+  }
+
+  age <- suppressWarnings(as.integer(raw_code))
+  if (is.na(age) || age < 1L || age > 17L) {
+    return(NA_character_)
+  }
+  if (age <= 4L) {
+    return("filicide_years_1_through_4")
+  }
+  if (age <= 9L) {
+    return("filicide_years_5_through_9")
+  }
+  if (age <= 14L) {
+    return("filicide_years_10_through_14")
+  }
+  "filicide_years_15_through_17"
+}
+
+extract_offender_segments <- function(record) {
+  reported_additional <- suppressWarnings(as.integer(substr(record, 96L, 98L)))
+  if (is.na(reported_additional)) {
+    stop("Encountered an invalid additional-offender count.")
+  }
+  represented_additional <- min(
+    reported_additional,
+    maximum_additional_offenders_in_layout
+  )
+
+  segments <- substr(record, 81L, 92L)
+  if (represented_additional > 0L) {
+    starts <- 149L + (seq_len(represented_additional) - 1L) * 12L
+    segments <- c(
+      segments,
+      vapply(starts, function(start) substr(record, start, start + 11L), character(1L))
+    )
+  }
+  segments
+}
+
+empty_sex_counts <- function() {
+  stats::setNames(integer(length(sex_levels)), sex_levels)
+}
+
+parse_shr_year <- function(year) {
+  records <- read_shr_archive(year)
+  # Position 71: A = murder and nonnegligent manslaughter.
+  records <- records[substr(records, 71L, 71L) == "A"]
+
+  general_counts <- empty_sex_counts()
+  filicide_subtype_ids <- c(
+    "filicide_under_18",
+    "filicide_under_1_year",
+    filicide_detailed_subtype_ids
+  )
+  filicide_counts <- stats::setNames(
+    lapply(filicide_subtype_ids, function(subtype_id) empty_sex_counts()),
+    filicide_subtype_ids
+  )
+  offender_record_chunks <- vector("list", length(records))
+
+  for (record_index in seq_along(records)) {
+    record <- records[[record_index]]
+    segments <- extract_offender_segments(record)
+
+    # Within a 12-character offender segment, positions 10-11 are the
+    # circumstance. Codes 80/81 are justifiable homicide.
+    circumstances <- substr(segments, 10L, 11L)
+    segments <- segments[!circumstances %in% c("80", "81")]
+    if (length(segments) == 0L) {
+      next
+    }
+
+    offender_sex <- normalize_sex(substr(segments, 3L, 3L))
+    general_counts <- general_counts + table(
+      factor(offender_sex, levels = sex_levels)
+    )
+
+    first_victim_age <- substr(record, 76L, 77L)
+    detailed_subtype_id <- classify_filicide_age(first_victim_age)
+    # Within a 12-character offender segment, positions 8-9 are the
+    # relationship of the first-listed victim to that offender.
+    relationships <- substr(segments, 8L, 9L)
+    qualifying <-
+      !is.na(detailed_subtype_id) &
+      relationships %in% filicide_relationship_codes
+
+    homicide_group <- rep("other_homicide", length(segments))
+    homicide_group[qualifying] <- detailed_subtype_id
+    offender_record_chunks[[record_index]] <- data.frame(
+      year = rep.int(year, length(segments)),
+      source_record_id = sprintf("%d-%07d", year, record_index),
+      homicide_group = homicide_group,
+      offender_sex = offender_sex,
+      stringsAsFactors = FALSE
+    )
+
+    if (any(qualifying)) {
+      qualifying_sex <- offender_sex[qualifying]
+      qualifying_counts <- table(factor(qualifying_sex, levels = sex_levels))
+      filicide_counts[["filicide_under_18"]] <-
+        filicide_counts[["filicide_under_18"]] + qualifying_counts
+      filicide_counts[[detailed_subtype_id]] <-
+        filicide_counts[[detailed_subtype_id]] + qualifying_counts
+
+      if (detailed_subtype_id %in% filicide_detailed_subtype_ids[1:2]) {
+        filicide_counts[["filicide_under_1_year"]] <-
+          filicide_counts[["filicide_under_1_year"]] + qualifying_counts
+      }
+    }
+  }
+
+  list(
+    counts = c(list(general_homicide = general_counts), filicide_counts),
+    offender_records = do.call(rbind, offender_record_chunks)
+  )
+}
+```
+
+```{r parse-years}
+annual_parsed_data <- lapply(analysis_years, parse_shr_year)
+names(annual_parsed_data) <- analysis_years
+
+annual_counts <- lapply(annual_parsed_data, function(year_data) year_data$counts)
+offender_records <- do.call(
+  rbind,
+  lapply(annual_parsed_data, function(year_data) year_data$offender_records)
+)
+rownames(offender_records) <- NULL
+
+subtype_ids <- names(annual_counts[[1L]])
+pooled_counts <- lapply(
+  subtype_ids,
+  function(subtype_id) {
+    Reduce(
+      `+`,
+      lapply(annual_counts, function(year_data) year_data[[subtype_id]])
+    )
+  }
+)
+names(pooled_counts) <- subtype_ids
+
+# Internal consistency checks: the detailed groups must sum exactly to their
+# two combined categories.
+stopifnot(
+  nrow(offender_records) == sum(pooled_counts$general_homicide),
+  all(offender_records$homicide_group %in% model_group_ids),
+  all(
+    pooled_counts$filicide_under_1_year ==
+      pooled_counts$filicide_birth_through_6_days +
+        pooled_counts$filicide_days_7_through_364
+  ),
+  all(
+    pooled_counts$filicide_under_18 ==
+      Reduce(`+`, pooled_counts[filicide_detailed_subtype_ids])
+  )
+)
+```
+
+## Compute the descriptive comparison
+
+```{r compute-comparison}
+subtype_labels <- c(
+  general_homicide = "General homicide (reference)",
+  filicide_under_18 = "Filicide, birth-17 years",
+  filicide_under_1_year = "Infant filicide, birth-364 days",
+  filicide_birth_through_6_days = "Filicide, birth-6 days",
+  filicide_days_7_through_364 = "Infant filicide, 7-364 days",
+  filicide_years_1_through_4 = "Filicide, 1-4 years",
+  filicide_years_5_through_9 = "Filicide, 5-9 years",
+  filicide_years_10_through_14 = "Filicide, 10-14 years",
+  filicide_years_15_through_17 = "Filicide, 15-17 years"
+)
+
+comparison <- data.frame(
+  analysis_start_year = analysis_start_year,
+  analysis_end_year = analysis_end_year,
+  homicide_subtype = unname(subtype_labels[subtype_ids]),
+  male_offender_records = vapply(
+    pooled_counts,
+    function(counts) unname(counts[["male"]]),
+    integer(1L)
+  ),
+  female_offender_records = vapply(
+    pooled_counts,
+    function(counts) unname(counts[["female"]]),
+    integer(1L)
+  ),
+  unknown_or_not_specified_offender_records = vapply(
+    pooled_counts,
+    function(counts) unname(counts[["unknown/not specified"]]),
+    integer(1L)
+  )
+)
+
+comparison$known_sex_offender_records <-
+  comparison$male_offender_records + comparison$female_offender_records
+comparison$total_offender_records <-
+  comparison$known_sex_offender_records +
+  comparison$unknown_or_not_specified_offender_records
+comparison$female_proportion_known_sex <-
+  comparison$female_offender_records / comparison$known_sex_offender_records
+comparison$female_to_male_odds <-
+  comparison$female_offender_records / comparison$male_offender_records
+
+general_homicide_odds <- comparison$female_to_male_odds[
+  subtype_ids == "general_homicide"
+]
+comparison$odds_ratio_vs_general_homicide <-
+  comparison$female_to_male_odds / general_homicide_odds
+
+stopifnot(
+  nrow(comparison) == length(subtype_labels),
+  length(general_homicide_odds) == 1L,
+  comparison$odds_ratio_vs_general_homicide[[1L]] == 1
+)
+
+female_proportion_by_subtype <- stats::setNames(
+  comparison$female_proportion_known_sex,
+  subtype_ids
+)
+female_to_male_odds_by_subtype <- stats::setNames(
+  comparison$female_to_male_odds,
+  subtype_ids
+)
+odds_ratio_by_subtype <- stats::setNames(
+  comparison$odds_ratio_vs_general_homicide,
+  subtype_ids
+)
+
+dir.create(output_directory, recursive = TRUE, showWarnings = FALSE)
+utils::write.csv(comparison, output_csv, row.names = FALSE, na = "")
+```
+
+```{r comparison-table, echo=FALSE}
+display_table <- data.frame(
+  `Homicide subtype` = comparison$homicide_subtype,
+  Male = format(comparison$male_offender_records, big.mark = ","),
+  Female = format(comparison$female_offender_records, big.mark = ","),
+  `Unknown / not specified` = format(
+    comparison$unknown_or_not_specified_offender_records,
+    big.mark = ","
+  ),
+  `Female proportion` = sprintf(
+    "%.1f%%",
+    100 * comparison$female_proportion_known_sex
+  ),
+  `Female:male odds` = sprintf("%.3f", comparison$female_to_male_odds),
+  `OR vs. general homicide` = sprintf(
+    "%.3f",
+    comparison$odds_ratio_vs_general_homicide
+  ),
+  check.names = FALSE
+)
+
+knitr::kable(
+  display_table,
+  align = c("l", "r", "r", "r", "r", "r", "r"),
+  caption = sprintf(
+    "Offender-sex composition in FBI SHR records, %d-%d",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+```
+
+## Descriptive result
+
+Across 2016--2025, the female proportion among general-homicide offender
+records with known sex was
+`r sprintf("%.1f%%", 100 * female_proportion_by_subtype[["general_homicide"]])`.
+For infant filicide as a whole, it was
+`r sprintf("%.1f%%", 100 * female_proportion_by_subtype[["filicide_under_1_year"]])`.
+The corresponding female:male odds were
+`r sprintf("%.3f", female_to_male_odds_by_subtype[["general_homicide"]])` and
+`r sprintf("%.3f", female_to_male_odds_by_subtype[["filicide_under_1_year"]])`, respectively.
+Thus, the female:male odds in recorded infant filicide were
+`r sprintf("%.2f", odds_ratio_by_subtype[["filicide_under_1_year"]])` times the
+female:male odds in homicide generally.
+
+The infant period is not compositionally uniform. The odds ratio was
+`r sprintf("%.2f", odds_ratio_by_subtype[["filicide_birth_through_6_days"]])` for
+filicide during the first 6 days after birth and
+`r sprintf("%.2f", odds_ratio_by_subtype[["filicide_days_7_through_364"]])` for days
+7--364. These are descriptive comparisons of reported offender records, not
+causal estimates and not statements about any individual case.
+
+The unrounded table is written during knitting to `r output_csv`.
+
+## Inferential model preparation
+
+Formal comparisons require mutually exclusive groups. The inferential data
+therefore use the six detailed filicide age groups and a reference group of
+all other homicide offender records. The reference excludes every offender
+record assigned to one of the six filicide groups. The combined birth--364-day
+and birth--17-year rows remain descriptive rollups and are not entered as
+additional model observations.
+
+The outcome is female versus male among records with known sex. Unknown or
+not-specified sex is analyzed separately as missing outcome information. Each
+source-record identifier groups offender segments represented on the same SHR
+fixed-width record; cluster-robust inference below allows those segments to be
+correlated.
+
+```{r inferential-data}
+model_input_csv <- file.path(
+  output_directory,
+  sprintf(
+    "inferential_model_input_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+model_results_csv <- file.path(
+  output_directory,
+  sprintf(
+    "inferential_model_results_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+model_diagnostics_csv <- file.path(
+  output_directory,
+  sprintf(
+    "inferential_model_diagnostics_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+cell_diagnostics_csv <- file.path(
+  output_directory,
+  sprintf(
+    "inferential_model_cell_diagnostics_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+missingness_csv <- file.path(
+  output_directory,
+  sprintf(
+    "inferential_model_missingness_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+period_sensitivity_csv <- file.path(
+  output_directory,
+  sprintf(
+    "inferential_model_period_sensitivity_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+leave_one_year_out_csv <- file.path(
+  output_directory,
+  sprintf(
+    "inferential_model_leave_one_year_out_%d_%d.csv",
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+
+model_group_labels <- c(
+  other_homicide = "All other homicide (reference)",
+  subtype_labels[filicide_detailed_subtype_ids]
+)
+
+offender_records$homicide_group <- factor(
+  offender_records$homicide_group,
+  levels = model_group_ids
+)
+offender_records$offender_sex <- factor(
+  offender_records$offender_sex,
+  levels = sex_levels
+)
+
+count_array <- table(
+  year = factor(offender_records$year, levels = analysis_years),
+  homicide_group = offender_records$homicide_group,
+  offender_sex = offender_records$offender_sex
+)
+
+# expand.grid varies its first factor fastest, matching the vectorized first
+# dimension of each year-by-group slice in count_array.
+annual_model_counts <- expand.grid(
+  year = analysis_years,
+  homicide_group = model_group_ids,
+  KEEP.OUT.ATTRS = FALSE,
+  stringsAsFactors = FALSE
+)
+annual_model_counts$homicide_group_label <- unname(
+  model_group_labels[annual_model_counts$homicide_group]
+)
+annual_model_counts$male_offender_records <- as.integer(
+  count_array[, , "male"]
+)
+annual_model_counts$female_offender_records <- as.integer(
+  count_array[, , "female"]
+)
+annual_model_counts$unknown_or_not_specified_offender_records <- as.integer(
+  count_array[, , "unknown/not specified"]
+)
+annual_model_counts$known_sex_offender_records <-
+  annual_model_counts$male_offender_records +
+  annual_model_counts$female_offender_records
+annual_model_counts$total_offender_records <-
+  annual_model_counts$known_sex_offender_records +
+  annual_model_counts$unknown_or_not_specified_offender_records
+annual_model_counts$female_proportion_known_sex <- with(
+  annual_model_counts,
+  female_offender_records / known_sex_offender_records
+)
+annual_model_counts$unknown_proportion_all_records <- with(
+  annual_model_counts,
+  unknown_or_not_specified_offender_records / total_offender_records
+)
+
+stopifnot(
+  sum(annual_model_counts$total_offender_records) == nrow(offender_records),
+  all(annual_model_counts$known_sex_offender_records > 0L)
+)
+
+utils::write.csv(annual_model_counts, model_input_csv, row.names = FALSE, na = "")
+```
+
+## Primary year-adjusted model
+
+The primary model is a binary logistic regression with categorical homicide
+group and categorical data year. Age is deliberately categorical because the
+age intervals have unequal widths and the two infant codes are qualitatively
+distinct. Standard errors are clustered by SHR source record.
+
+```{r primary-inferential-model}
+if (!requireNamespace("sandwich", quietly = TRUE)) {
+  stop(
+    paste(
+      "The inferential section requires the sandwich package.",
+      "Install it with install.packages('sandwich') and knit again."
+    )
+  )
+}
+
+known_sex_records <- offender_records[
+  offender_records$offender_sex %in% c("male", "female"),
+  ,
+  drop = FALSE
+]
+known_sex_records$homicide_group <- factor(
+  known_sex_records$homicide_group,
+  levels = model_group_ids
+)
+known_sex_records$is_female <- as.integer(
+  known_sex_records$offender_sex == "female"
+)
+known_sex_records$year_factor <- factor(known_sex_records$year)
+
+primary_model <- stats::glm(
+  is_female ~ homicide_group + year_factor,
+  family = stats::binomial(),
+  data = known_sex_records
+)
+primary_cluster_vcov <- sandwich::vcovCL(
+  primary_model,
+  cluster = known_sex_records$source_record_id,
+  type = "HC1"
+)
+
+robust_wald_test <- function(model, covariance, coefficient_names) {
+  beta <- stats::coef(model)[coefficient_names]
+  covariance_subset <- covariance[
+    coefficient_names,
+    coefficient_names,
+    drop = FALSE
+  ]
+  statistic <- drop(crossprod(beta, solve(covariance_subset, beta)))
+  degrees_of_freedom <- length(beta)
+  c(
+    statistic = statistic,
+    degrees_of_freedom = degrees_of_freedom,
+    p_value = stats::pchisq(
+      statistic,
+      df = degrees_of_freedom,
+      lower.tail = FALSE
+    )
+  )
+}
+
+group_coefficient_names <- paste0(
+  "homicide_group",
+  filicide_detailed_subtype_ids
+)
+stopifnot(
+  primary_model$converged,
+  all(group_coefficient_names %in% names(stats::coef(primary_model)))
+)
+
+omnibus_group_test <- robust_wald_test(
+  primary_model,
+  primary_cluster_vcov,
+  group_coefficient_names
+)
+
+group_beta <- stats::coef(primary_model)[group_coefficient_names]
+group_standard_error <- sqrt(diag(primary_cluster_vcov))[group_coefficient_names]
+group_z <- group_beta / group_standard_error
+group_p <- 2 * stats::pnorm(abs(group_z), lower.tail = FALSE)
+
+pooled_model_counts <- data.frame(
+  homicide_group = model_group_ids,
+  homicide_group_label = unname(model_group_labels[model_group_ids]),
+  male_offender_records = colSums(count_array[, , "male"]),
+  female_offender_records = colSums(count_array[, , "female"]),
+  unknown_or_not_specified_offender_records = colSums(
+    count_array[, , "unknown/not specified"]
+  ),
+  row.names = NULL,
+  check.names = FALSE
+)
+pooled_model_counts$known_sex_offender_records <- with(
+  pooled_model_counts,
+  male_offender_records + female_offender_records
+)
+pooled_model_counts$total_offender_records <- with(
+  pooled_model_counts,
+  known_sex_offender_records + unknown_or_not_specified_offender_records
+)
+pooled_model_counts$female_proportion_known_sex <- with(
+  pooled_model_counts,
+  female_offender_records / known_sex_offender_records
+)
+pooled_model_counts$female_to_male_odds <- with(
+  pooled_model_counts,
+  female_offender_records / male_offender_records
+)
+
+wilson_interval <- function(successes, trials, confidence_level = 0.95) {
+  z <- stats::qnorm(1 - (1 - confidence_level) / 2)
+  proportion <- successes / trials
+  denominator <- 1 + z^2 / trials
+  center <- (proportion + z^2 / (2 * trials)) / denominator
+  half_width <- z * sqrt(
+    proportion * (1 - proportion) / trials + z^2 / (4 * trials^2)
+  ) / denominator
+  c(lower = center - half_width, upper = center + half_width)
+}
+
+proportion_intervals <- t(vapply(
+  seq_len(nrow(pooled_model_counts)),
+  function(row_number) {
+    wilson_interval(
+      pooled_model_counts$female_offender_records[[row_number]],
+      pooled_model_counts$known_sex_offender_records[[row_number]]
+    )
+  },
+  numeric(2L)
+))
+
+inferential_results <- pooled_model_counts
+inferential_results$female_proportion_ci_lower <- proportion_intervals[, "lower"]
+inferential_results$female_proportion_ci_upper <- proportion_intervals[, "upper"]
+inferential_results$adjusted_odds_ratio_vs_other_homicide <- c(
+  1,
+  exp(unname(group_beta))
+)
+inferential_results$cluster_robust_ci_lower <- c(
+  1,
+  exp(unname(group_beta - stats::qnorm(0.975) * group_standard_error))
+)
+inferential_results$cluster_robust_ci_upper <- c(
+  1,
+  exp(unname(group_beta + stats::qnorm(0.975) * group_standard_error))
+)
+inferential_results$p_value <- c(NA_real_, unname(group_p))
+inferential_results$holm_adjusted_p_value <- c(
+  NA_real_,
+  stats::p.adjust(unname(group_p), method = "holm")
+)
+
+utils::write.csv(inferential_results, model_results_csv, row.names = FALSE, na = "")
+```
+
+```{r inferential-results-table, echo=FALSE}
+inferential_display <- data.frame(
+  Group = inferential_results$homicide_group_label,
+  Male = format(inferential_results$male_offender_records, big.mark = ","),
+  Female = format(inferential_results$female_offender_records, big.mark = ","),
+  `Female proportion (95% Wilson CI)` = sprintf(
+    "%.1f%% (%.1f%%, %.1f%%)",
+    100 * inferential_results$female_proportion_known_sex,
+    100 * inferential_results$female_proportion_ci_lower,
+    100 * inferential_results$female_proportion_ci_upper
+  ),
+  `Adjusted OR (95% cluster-robust CI)` = ifelse(
+    inferential_results$homicide_group == "other_homicide",
+    "1.000 (reference)",
+    sprintf(
+      "%.3f (%.3f, %.3f)",
+      inferential_results$adjusted_odds_ratio_vs_other_homicide,
+      inferential_results$cluster_robust_ci_lower,
+      inferential_results$cluster_robust_ci_upper
+    )
+  ),
+  `Holm-adjusted p` = ifelse(
+    is.na(inferential_results$holm_adjusted_p_value),
+    "--",
+    format.pval(
+      inferential_results$holm_adjusted_p_value,
+      digits = 3,
+      eps = 0.001
+    )
+  ),
+  check.names = FALSE
+)
+
+knitr::kable(
+  inferential_display,
+  align = c("l", "r", "r", "l", "l", "r"),
+  caption = sprintf(
+    paste(
+      "Year-adjusted female-offender odds by mutually exclusive homicide",
+      "group, %d-%d"
+    ),
+    analysis_start_year,
+    analysis_end_year
+  )
+)
+```
+
+The cluster-robust omnibus Wald test of the six homicide-group coefficients is
+$\chi^2(`r as.integer(omnibus_group_test[["degrees_of_freedom"]])`) =$
+`r sprintf("%.2f", omnibus_group_test[["statistic"]])`,
+$p$ `r format.pval(omnibus_group_test[["p_value"]], digits = 3, eps = 0.001)`.
+This tests whether the recorded female:male odds in at least one detailed
+filicide group differ from the odds among all other homicide records after
+adjustment for data year.
+
+## Suitability checks and model diagnostics
+
+```{r model-diagnostics}
+# A grouped version of the same main-effects model supports cell-level
+# residual, goodness-of-fit, overdispersion, and influence diagnostics.
+annual_model_counts$homicide_group_factor <- factor(
+  annual_model_counts$homicide_group,
+  levels = model_group_ids
+)
+annual_model_counts$year_factor <- factor(annual_model_counts$year)
+grouped_model <- stats::glm(
+  cbind(female_offender_records, male_offender_records) ~
+    homicide_group_factor + year_factor,
+  family = stats::binomial(),
+  data = annual_model_counts
+)
+
+pearson_chisq <- sum(stats::residuals(grouped_model, type = "pearson")^2)
+pearson_degrees_of_freedom <- stats::df.residual(grouped_model)
+pearson_dispersion <- pearson_chisq / pearson_degrees_of_freedom
+pearson_gof_p <- stats::pchisq(
+  pearson_chisq,
+  df = pearson_degrees_of_freedom,
+  lower.tail = FALSE
+)
+
+cell_diagnostics <- annual_model_counts[c(
+  "year",
+  "homicide_group",
+  "homicide_group_label",
+  "male_offender_records",
+  "female_offender_records",
+  "known_sex_offender_records"
+)]
+cell_diagnostics$fitted_female_proportion <- stats::fitted(grouped_model)
+cell_diagnostics$pearson_residual <- stats::residuals(
+  grouped_model,
+  type = "pearson"
+)
+cell_diagnostics$standardized_pearson_residual <- stats::rstandard(
+  grouped_model,
+  type = "pearson"
+)
+cell_diagnostics$leverage <- stats::hatvalues(grouped_model)
+cell_diagnostics$cooks_distance <- stats::cooks.distance(grouped_model)
+influence_threshold <- 4 / nrow(cell_diagnostics)
+cell_diagnostics$flag_cooks_distance <-
+  cell_diagnostics$cooks_distance > influence_threshold
+
+# Check whether the filicide/general contrast differs across the reporting
+# transition by testing all group-by-period interactions jointly.
+known_sex_records$transition_period <- factor(
+  ifelse(known_sex_records$year <= 2020L, "2016-2020", "2021-2025"),
+  levels = c("2016-2020", "2021-2025")
+)
+transition_model <- stats::glm(
+  is_female ~ homicide_group * transition_period,
+  family = stats::binomial(),
+  data = known_sex_records
+)
+transition_cluster_vcov <- sandwich::vcovCL(
+  transition_model,
+  cluster = known_sex_records$source_record_id,
+  type = "HC1"
+)
+transition_interaction_names <- grep(
+  "^homicide_group.*:transition_period",
+  names(stats::coef(transition_model)),
+  value = TRUE
+)
+transition_interaction_test <- robust_wald_test(
+  transition_model,
+  transition_cluster_vcov,
+  transition_interaction_names
+)
+
+estimate_period_specific_odds_ratios <- function(period_label, period_years) {
+  period_records <- known_sex_records[
+    known_sex_records$year %in% period_years,
+    ,
+    drop = FALSE
+  ]
+  period_records$homicide_group <- factor(
+    period_records$homicide_group,
+    levels = model_group_ids
+  )
+  period_records$year_factor <- factor(period_records$year)
+
+  period_model <- stats::glm(
+    is_female ~ homicide_group + year_factor,
+    family = stats::binomial(),
+    data = period_records
+  )
+  period_vcov <- sandwich::vcovCL(
+    period_model,
+    cluster = period_records$source_record_id,
+    type = "HC1"
+  )
+  coefficient_names <- paste0(
+    "homicide_group",
+    filicide_detailed_subtype_ids
+  )
+  beta <- stats::coef(period_model)[coefficient_names]
+  standard_error <- sqrt(diag(period_vcov))[coefficient_names]
+  p_value <- 2 * stats::pnorm(
+    abs(beta / standard_error),
+    lower.tail = FALSE
+  )
+
+  data.frame(
+    period = period_label,
+    start_year = min(period_years),
+    end_year = max(period_years),
+    homicide_group = filicide_detailed_subtype_ids,
+    homicide_group_label = unname(
+      model_group_labels[filicide_detailed_subtype_ids]
+    ),
+    adjusted_odds_ratio_vs_other_homicide = exp(unname(beta)),
+    cluster_robust_ci_lower = exp(
+      unname(beta - stats::qnorm(0.975) * standard_error)
+    ),
+    cluster_robust_ci_upper = exp(
+      unname(beta + stats::qnorm(0.975) * standard_error)
+    ),
+    p_value = unname(p_value),
+    holm_adjusted_p_value = stats::p.adjust(
+      unname(p_value),
+      method = "holm"
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+period_specific_results <- rbind(
+  estimate_period_specific_odds_ratios("2016-2020", 2016:2020),
+  estimate_period_specific_odds_ratios("2021-2025", 2021:2025)
+)
+
+# Cook's distance is strongly affected by the much larger reference cells.
+# Leave-one-year-out estimates provide a direct influence sensitivity check.
+grouped_group_coefficient_names <- paste0(
+  "homicide_group_factor",
+  filicide_detailed_subtype_ids
+)
+full_grouped_odds_ratios <- exp(
+  stats::coef(grouped_model)[grouped_group_coefficient_names]
+)
+leave_one_year_out_results <- do.call(
+  rbind,
+  lapply(analysis_years, function(omitted_year) {
+    reduced_data <- annual_model_counts[
+      annual_model_counts$year != omitted_year,
+      ,
+      drop = FALSE
+    ]
+    reduced_data$year_factor <- factor(reduced_data$year)
+    reduced_model <- stats::glm(
+      cbind(female_offender_records, male_offender_records) ~
+        homicide_group_factor + year_factor,
+      family = stats::binomial(),
+      data = reduced_data
+    )
+    reduced_odds_ratios <- exp(
+      stats::coef(reduced_model)[grouped_group_coefficient_names]
+    )
+    data.frame(
+      omitted_year = omitted_year,
+      homicide_group = filicide_detailed_subtype_ids,
+      homicide_group_label = unname(
+        model_group_labels[filicide_detailed_subtype_ids]
+      ),
+      full_model_adjusted_odds_ratio = unname(full_grouped_odds_ratios),
+      leave_one_year_out_adjusted_odds_ratio = unname(reduced_odds_ratios),
+      percent_change_from_full_model = 100 * unname(
+        reduced_odds_ratios / full_grouped_odds_ratios - 1
+      ),
+      stringsAsFactors = FALSE
+    )
+  })
+)
+maximum_leave_one_year_out_change <- max(
+  abs(leave_one_year_out_results$percent_change_from_full_model)
+)
+
+# Missing sex is not treated as a third substantive outcome. Its pattern and
+# worst-case female-proportion bounds are reported separately.
+missingness_results <- pooled_model_counts[c(
+  "homicide_group",
+  "homicide_group_label",
+  "male_offender_records",
+  "female_offender_records",
+  "unknown_or_not_specified_offender_records",
+  "known_sex_offender_records",
+  "total_offender_records"
+)]
+missingness_results$unknown_proportion_all_records <- with(
+  missingness_results,
+  unknown_or_not_specified_offender_records / total_offender_records
+)
+missingness_results$female_proportion_lower_bound <- with(
+  missingness_results,
+  female_offender_records / total_offender_records
+)
+missingness_results$female_proportion_upper_bound <- with(
+  missingness_results,
+  (female_offender_records + unknown_or_not_specified_offender_records) /
+    total_offender_records
+)
+
+knownness_table <- with(
+  missingness_results,
+  cbind(
+    known_sex = known_sex_offender_records,
+    unknown_or_not_specified = unknown_or_not_specified_offender_records
+  )
+)
+knownness_test <- suppressWarnings(stats::chisq.test(
+  knownness_table,
+  correct = FALSE
+))
+
+zero_annual_known_sex_cells <- sum(
+  annual_model_counts$male_offender_records == 0L |
+    annual_model_counts$female_offender_records == 0L
+)
+
+model_diagnostics <- data.frame(
+  diagnostic = c(
+    "Primary logistic model converged (1=yes)",
+    "Known-sex offender records in primary model",
+    "SHR source-record clusters",
+    "Annual group cells with zero male or zero female records",
+    "Pearson overdispersion ratio",
+    "Grouped-model Pearson goodness-of-fit",
+    "Cells above Cook's-distance screening threshold",
+    "Maximum Cook's distance",
+    "Maximum absolute OR change in leave-one-year-out analysis (%)",
+    "Robust omnibus homicide-group Wald test",
+    "Robust group-by-transition-period Wald test",
+    "Known-versus-unknown sex Pearson test",
+    "Minimum expected count in knownness test"
+  ),
+  estimate = c(
+    as.numeric(primary_model$converged),
+    nrow(known_sex_records),
+    length(unique(known_sex_records$source_record_id)),
+    zero_annual_known_sex_cells,
+    pearson_dispersion,
+    pearson_chisq,
+    sum(cell_diagnostics$flag_cooks_distance),
+    max(cell_diagnostics$cooks_distance),
+    maximum_leave_one_year_out_change,
+    omnibus_group_test[["statistic"]],
+    transition_interaction_test[["statistic"]],
+    unname(knownness_test$statistic),
+    min(knownness_test$expected)
+  ),
+  degrees_of_freedom = c(
+    NA,
+    NA,
+    NA,
+    NA,
+    pearson_degrees_of_freedom,
+    pearson_degrees_of_freedom,
+    NA,
+    NA,
+    NA,
+    omnibus_group_test[["degrees_of_freedom"]],
+    transition_interaction_test[["degrees_of_freedom"]],
+    unname(knownness_test$parameter),
+    NA
+  ),
+  p_value = c(
+    NA,
+    NA,
+    NA,
+    NA,
+    NA,
+    pearson_gof_p,
+    NA,
+    NA,
+    NA,
+    omnibus_group_test[["p_value"]],
+    transition_interaction_test[["p_value"]],
+    knownness_test$p.value,
+    NA
+  ),
+  stringsAsFactors = FALSE
+)
+
+utils::write.csv(model_diagnostics, model_diagnostics_csv, row.names = FALSE, na = "")
+utils::write.csv(cell_diagnostics, cell_diagnostics_csv, row.names = FALSE, na = "")
+utils::write.csv(missingness_results, missingness_csv, row.names = FALSE, na = "")
+utils::write.csv(
+  period_specific_results,
+  period_sensitivity_csv,
+  row.names = FALSE,
+  na = ""
+)
+utils::write.csv(
+  leave_one_year_out_results,
+  leave_one_year_out_csv,
+  row.names = FALSE,
+  na = ""
+)
+```
+
+The group-by-period test is statistically significant when its $p$-value is
+below the chosen threshold. In that event, the pooled model should be described
+as a ten-year average and the following period-specific estimates should be
+reported as a sensitivity analysis.
+
+```{r period-sensitivity-table, echo=FALSE}
+period_sensitivity_display <- data.frame(
+  Period = period_specific_results$period,
+  Group = period_specific_results$homicide_group_label,
+  `Adjusted OR (95% cluster-robust CI)` = sprintf(
+    "%.2f (%.2f, %.2f)",
+    period_specific_results$adjusted_odds_ratio_vs_other_homicide,
+    period_specific_results$cluster_robust_ci_lower,
+    period_specific_results$cluster_robust_ci_upper
+  ),
+  check.names = FALSE
+)
+
+knitr::kable(
+  period_sensitivity_display,
+  align = c("l", "l", "l"),
+  caption = "Sensitivity estimates before and after the 2021 reporting transition"
+)
+```
+
+```{r diagnostics-table, echo=FALSE}
+diagnostic_display <- data.frame(
+  Diagnostic = c(
+    "Primary model converged",
+    "Annual cells with a zero male or female count",
+    "Pearson overdispersion ratio",
+    "Pearson goodness-of-fit p",
+    "Cells above Cook's-distance screen",
+    "Largest absolute leave-one-year-out OR change",
+    "Age group x 2021 transition p",
+    "Known vs. unknown sex p"
+  ),
+  Result = c(
+    ifelse(primary_model$converged, "Yes", "No"),
+    zero_annual_known_sex_cells,
+    sprintf("%.3f", pearson_dispersion),
+    format.pval(pearson_gof_p, digits = 3, eps = 0.001),
+    sum(cell_diagnostics$flag_cooks_distance),
+    sprintf("%.1f%%", maximum_leave_one_year_out_change),
+    format.pval(
+      transition_interaction_test[["p_value"]],
+      digits = 3,
+      eps = 0.001
+    ),
+    format.pval(knownness_test$p.value, digits = 3, eps = 0.001)
+  ),
+  check.names = FALSE
+)
+
+knitr::kable(
+  diagnostic_display,
+  align = c("l", "r"),
+  caption = "Pre-specified model checks"
+)
+```
+
+```{r diagnostic-plots, echo=FALSE, fig.width=10, fig.height=4.5}
+old_graphics_parameters <- graphics::par(no.readonly = TRUE)
+graphics::par(mfrow = c(1, 2), mar = c(4.2, 4.2, 2.5, 1))
+
+graphics::plot(
+  cell_diagnostics$fitted_female_proportion,
+  cell_diagnostics$standardized_pearson_residual,
+  pch = 19,
+  col = "#2C7FB8",
+  xlab = "Fitted female proportion",
+  ylab = "Standardized Pearson residual",
+  main = "Residuals versus fitted"
+)
+graphics::abline(h = c(-2, 0, 2), lty = c(2, 1, 2), col = "grey50")
+
+graphics::plot(
+  cell_diagnostics$cooks_distance,
+  type = "h",
+  lwd = 2,
+  col = "#D95F0E",
+  xlab = "Year-by-group cell",
+  ylab = "Cook's distance",
+  main = "Cell influence"
+)
+graphics::abline(h = influence_threshold, lty = 2, col = "grey40")
+graphics::par(old_graphics_parameters)
+```
+
+A normal Q--Q plot and a Shapiro--Wilk normality test are intentionally not
+used. A binomial logistic model does not assume normally distributed outcomes
+or normally distributed residuals. The relevant diagnostics are sparse cells,
+convergence or separation, extra-binomial variation, influence, temporal
+heterogeneity, and dependence among offender records.
+
+The annual disjoint input, inferential estimates, model diagnostics,
+cell-level diagnostics, and missingness sensitivity table are written to the
+`output/` directory during knitting.
+
+## Figures
+
+The primary figure pairs the directly interpretable female proportion with the
+year-adjusted odds ratio. The odds-ratio axis is logarithmic so equal distances
+represent equal multiplicative changes. All error bars are 95% confidence
+intervals; the proportion intervals are Wilson intervals and the odds-ratio
+intervals use source-record-clustered standard errors.
+
+```{r figure-setup, include=FALSE}
+figure_packages <- c("ggplot2", "scales", "patchwork")
+missing_figure_packages <- figure_packages[!vapply(
+  figure_packages,
+  requireNamespace,
+  quietly = TRUE,
+  FUN.VALUE = logical(1L)
+)]
+if (length(missing_figure_packages) > 0L) {
+  stop(
+    sprintf(
+      "Install the required figure package(s) and knit again: %s",
+      paste(missing_figure_packages, collapse = ", ")
+    )
+  )
+}
+
+figure_directory <- file.path(output_directory, "figures")
+dir.create(figure_directory, recursive = TRUE, showWarnings = FALSE)
+
+age_figure_labels <- c(
+  filicide_birth_through_6_days = "Birth-6 days",
+  filicide_days_7_through_364 = "7-364 days",
+  filicide_years_1_through_4 = "1-4 years",
+  filicide_years_5_through_9 = "5-9 years",
+  filicide_years_10_through_14 = "10-14 years",
+  filicide_years_15_through_17 = "15-17 years"
+)
+age_figure_levels <- rev(unname(age_figure_labels))
+
+publication_theme <- function(base_size = 12) {
+  ggplot2::theme_minimal(base_size = base_size) +
+    ggplot2::theme(
+      panel.grid.minor = ggplot2::element_blank(),
+      panel.grid.major.y = ggplot2::element_blank(),
+      plot.title.position = "plot",
+      plot.title = ggplot2::element_text(face = "bold"),
+      plot.subtitle = ggplot2::element_text(color = "grey30"),
+      plot.caption = ggplot2::element_text(
+        color = "grey35",
+        hjust = 0,
+        size = ggplot2::rel(0.85)
+      ),
+      axis.title.y = ggplot2::element_blank(),
+      strip.text = ggplot2::element_text(face = "bold"),
+      legend.position = "top"
+    )
+}
+
+save_figure_pair <- function(plot, filename_stub, width, height) {
+  ggplot2::ggsave(
+    filename = file.path(figure_directory, paste0(filename_stub, ".png")),
+    plot = plot,
+    width = width,
+    height = height,
+    units = "in",
+    dpi = 320,
+    bg = "white"
+  )
+  ggplot2::ggsave(
+    filename = file.path(figure_directory, paste0(filename_stub, ".svg")),
+    plot = plot,
+    device = grDevices::svg,
+    width = width,
+    height = height,
+    units = "in",
+    bg = "white"
+  )
+}
+```
+
+### Primary comparison
+
+```{r primary-comparison-figure, echo=FALSE, fig.width=13, fig.height=6.5, out.width="100%", fig.alt="Two-panel chart comparing female offender proportions and adjusted female-to-male odds ratios across six filicide victim-age groups."}
+primary_plot_data <- inferential_results[
+  inferential_results$homicide_group %in% filicide_detailed_subtype_ids,
+  ,
+  drop = FALSE
+]
+primary_plot_data$age_label <- factor(
+  unname(age_figure_labels[primary_plot_data$homicide_group]),
+  levels = age_figure_levels
+)
+other_homicide_female_proportion <- inferential_results$female_proportion_known_sex[
+  inferential_results$homicide_group == "other_homicide"
+]
+
+primary_proportion_plot <- ggplot2::ggplot(
+  primary_plot_data,
+  ggplot2::aes(y = age_label, x = female_proportion_known_sex)
+) +
+  ggplot2::geom_vline(
+    xintercept = other_homicide_female_proportion,
+    linetype = "dashed",
+    color = "grey35",
+    linewidth = 0.6
+  ) +
+  ggplot2::geom_errorbar(
+    ggplot2::aes(
+      xmin = female_proportion_ci_lower,
+      xmax = female_proportion_ci_upper
+    ),
+    orientation = "y",
+    width = 0.16,
+    linewidth = 0.7,
+    color = "#005A8D"
+  ) +
+  ggplot2::geom_point(size = 3.1, color = "#0072B2") +
+  ggplot2::geom_text(
+    ggplot2::aes(
+      x = 0.785,
+      label = scales::percent(female_proportion_known_sex, accuracy = 0.1)
+    ),
+    hjust = 1,
+    size = 3.4,
+    color = "#003F5C"
+  ) +
+  ggplot2::scale_x_continuous(
+    labels = scales::label_percent(accuracy = 1),
+    breaks = seq(0, 0.8, by = 0.2),
+    limits = c(0, 0.8),
+    expand = ggplot2::expansion(mult = c(0, 0.02))
+  ) +
+  ggplot2::labs(
+    title = "A. Female proportion",
+    subtitle = sprintf(
+      "Dashed line: all other homicide (%.1f%%)",
+      100 * other_homicide_female_proportion
+    ),
+    x = "Female share among known-sex offender records"
+  ) +
+  publication_theme()
+
+primary_or_plot <- ggplot2::ggplot(
+  primary_plot_data,
+  ggplot2::aes(
+    y = age_label,
+    x = adjusted_odds_ratio_vs_other_homicide
+  )
+) +
+  ggplot2::geom_vline(
+    xintercept = 1,
+    linetype = "dashed",
+    color = "grey35",
+    linewidth = 0.6
+  ) +
+  ggplot2::geom_errorbar(
+    ggplot2::aes(
+      xmin = cluster_robust_ci_lower,
+      xmax = cluster_robust_ci_upper
+    ),
+    orientation = "y",
+    width = 0.16,
+    linewidth = 0.7,
+    color = "#A13D00"
+  ) +
+  ggplot2::geom_point(size = 3.1, color = "#D55E00") +
+  ggplot2::geom_text(
+    ggplot2::aes(
+      x = cluster_robust_ci_upper * 1.08,
+      label = sprintf("%.2f", adjusted_odds_ratio_vs_other_homicide)
+    ),
+    hjust = 0,
+    size = 3.4,
+    color = "#713000"
+  ) +
+  ggplot2::scale_x_log10(
+    breaks = c(1, 2, 5, 10, 20),
+    labels = c("1", "2", "5", "10", "20"),
+    limits = c(0.9, 30),
+    expand = ggplot2::expansion(mult = c(0, 0.02))
+  ) +
+  ggplot2::labs(
+    title = "B. Adjusted female:male odds ratio",
+    subtitle = "Reference: all other homicide; adjusted for data year",
+    x = "Odds ratio (log scale)"
+  ) +
+  publication_theme() +
+  ggplot2::theme(
+    axis.text.y = ggplot2::element_blank(),
+    axis.ticks.y = ggplot2::element_blank()
+  )
+
+primary_comparison_figure <- patchwork::wrap_plots(
+  primary_proportion_plot,
+  primary_or_plot,
+  ncol = 2,
+  widths = c(1.05, 0.95)
+) +
+  patchwork::plot_annotation(
+    title = sprintf(
+      "Recorded offender-sex composition in filicide, %d-%d",
+      analysis_start_year,
+      analysis_end_year
+    ),
+    caption = paste(
+      "Points show estimates; bars show 95% confidence intervals.",
+      "Proportions exclude unknown/not-specified sex.",
+      "Odds-ratio intervals use SHR source-record-clustered standard errors."
+    ),
+    theme = ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 16),
+      plot.caption = ggplot2::element_text(
+        color = "grey35",
+        hjust = 0,
+        size = 9
+      )
+    )
+  )
+
+save_figure_pair(
+  primary_comparison_figure,
+  "figure_1_primary_comparison_2016_2025",
+  width = 13,
+  height = 6.5
+)
+primary_comparison_figure
+```
+
+### Reporting-period sensitivity
+
+```{r period-sensitivity-figure, echo=FALSE, fig.width=10, fig.height=6.5, out.width="90%", fig.alt="Forest plot comparing adjusted odds ratios for six filicide victim-age groups in 2016 through 2020 and 2021 through 2025."}
+period_plot_data <- period_specific_results
+period_plot_data$age_label <- factor(
+  unname(age_figure_labels[period_plot_data$homicide_group]),
+  levels = age_figure_levels
+)
+period_position <- ggplot2::position_dodge(width = 0.55)
+
+period_sensitivity_figure <- ggplot2::ggplot(
+  period_plot_data,
+  ggplot2::aes(
+    y = age_label,
+    x = adjusted_odds_ratio_vs_other_homicide,
+    color = period,
+    shape = period
+  )
+) +
+  ggplot2::geom_vline(
+    xintercept = 1,
+    linetype = "dashed",
+    color = "grey35",
+    linewidth = 0.6
+  ) +
+  ggplot2::geom_errorbar(
+    ggplot2::aes(
+      xmin = cluster_robust_ci_lower,
+      xmax = cluster_robust_ci_upper
+    ),
+    orientation = "y",
+    width = 0.18,
+    linewidth = 0.7,
+    position = period_position
+  ) +
+  ggplot2::geom_point(size = 3, position = period_position) +
+  ggplot2::scale_x_log10(
+    breaks = c(1, 2, 5, 10, 20),
+    labels = c("1", "2", "5", "10", "20"),
+    limits = c(0.9, 30)
+  ) +
+  ggplot2::scale_color_manual(
+    values = c("2016-2020" = "#0072B2", "2021-2025" = "#D55E00")
+  ) +
+  ggplot2::scale_shape_manual(
+    values = c("2016-2020" = 16, "2021-2025" = 17)
+  ) +
+  ggplot2::labs(
+    title = "Adjusted estimates differ across the 2021 reporting transition",
+    subtitle = sprintf(
+      "Joint group-by-period test: p = %.3f",
+      transition_interaction_test[["p_value"]]
+    ),
+    x = "Female:male odds ratio versus all other homicide (log scale)",
+    color = NULL,
+    shape = NULL,
+    caption = paste(
+      "Models adjust for year within period.",
+      "Bars are 95% source-record-clustered confidence intervals."
+    )
+  ) +
+  publication_theme()
+
+save_figure_pair(
+  period_sensitivity_figure,
+  "figure_2_period_sensitivity_2016_2025",
+  width = 10,
+  height = 6.5
+)
+period_sensitivity_figure
+```
+
+### Annual female proportions
+
+```{r annual-proportion-figure, echo=FALSE, fig.width=13, fig.height=7, out.width="100%", fig.alt="Six faceted annual point and confidence-interval plots of female offender proportions by filicide victim-age group, with the annual all-other-homicide proportion overlaid as a reference."}
+annual_proportion_intervals <- t(vapply(
+  seq_len(nrow(annual_model_counts)),
+  function(row_number) {
+    wilson_interval(
+      annual_model_counts$female_offender_records[[row_number]],
+      annual_model_counts$known_sex_offender_records[[row_number]]
+    )
+  },
+  numeric(2L)
+))
+annual_plot_data <- annual_model_counts
+annual_plot_data$female_proportion_ci_lower <-
+  annual_proportion_intervals[, "lower"]
+annual_plot_data$female_proportion_ci_upper <-
+  annual_proportion_intervals[, "upper"]
+annual_reference_data <- annual_plot_data[
+  annual_plot_data$homicide_group == "other_homicide",
+  ,
+  drop = FALSE
+]
+annual_plot_data <- annual_plot_data[
+  annual_plot_data$homicide_group %in% filicide_detailed_subtype_ids,
+  ,
+  drop = FALSE
+]
+annual_plot_data$facet_label <- factor(
+  age_figure_labels[annual_plot_data$homicide_group],
+  levels = unname(age_figure_labels)
+)
+
+annual_proportion_figure <- ggplot2::ggplot(
+  annual_plot_data,
+  ggplot2::aes(x = year, y = female_proportion_known_sex)
+) +
+  ggplot2::geom_vline(
+    xintercept = 2020.5,
+    linetype = "dashed",
+    color = "grey50",
+    linewidth = 0.55
+  ) +
+  ggplot2::geom_errorbar(
+    ggplot2::aes(
+      ymin = female_proportion_ci_lower,
+      ymax = female_proportion_ci_upper
+    ),
+    width = 0.12,
+    linewidth = 0.55,
+    color = "#4C78A8"
+  ) +
+  ggplot2::geom_line(
+    data = annual_reference_data,
+    ggplot2::aes(x = year, y = female_proportion_known_sex),
+    inherit.aes = FALSE,
+    linewidth = 0.7,
+    linetype = "dotted",
+    color = "grey30"
+  ) +
+  ggplot2::geom_line(linewidth = 0.55, color = "#2C5F8A") +
+  ggplot2::geom_point(size = 2, color = "#0072B2") +
+  ggplot2::facet_wrap(~ facet_label, ncol = 3) +
+  ggplot2::scale_x_continuous(
+    breaks = c(2016, 2018, 2020, 2022, 2024),
+    minor_breaks = NULL
+  ) +
+  ggplot2::scale_y_continuous(
+    labels = scales::label_percent(accuracy = 1),
+    breaks = seq(0, 1, by = 0.25),
+    limits = c(0, 1)
+  ) +
+  ggplot2::labs(
+    title = "Annual female proportions reveal sampling variability and period change",
+    subtitle = paste(
+      "Vertical dashed line separates reporting periods;",
+      "grey dotted series is all other homicide"
+    ),
+    x = "Data year",
+    y = "Female share among known-sex offender records",
+    caption = "Points are annual observed proportions; bars are 95% Wilson intervals."
+  ) +
+  publication_theme() +
+  ggplot2::theme(
+    axis.title.y = ggplot2::element_text(angle = 90, vjust = 1),
+    axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+  )
+
+save_figure_pair(
+  annual_proportion_figure,
+  "figure_3_annual_female_proportion_2016_2025",
+  width = 13,
+  height = 7
+)
+annual_proportion_figure
+```
+
+### Unknown-sex records
+
+```{r unknown-sex-figure, echo=FALSE, fig.width=10, fig.height=6.5, out.width="90%", fig.alt="Horizontal bar chart showing that unknown or unspecified offender sex is much more prevalent in all other homicide records than in the six classified filicide groups."}
+unknown_plot_data <- missingness_results
+unknown_plot_data$plot_label <- factor(
+  c(
+    "other_homicide" = "All other homicide",
+    age_figure_labels
+  )[unknown_plot_data$homicide_group],
+  levels = rev(c("All other homicide", unname(age_figure_labels)))
+)
+unknown_plot_data$group_type <- ifelse(
+  unknown_plot_data$homicide_group == "other_homicide",
+  "All other homicide",
+  "Filicide age group"
+)
+
+unknown_sex_figure <- ggplot2::ggplot(
+  unknown_plot_data,
+  ggplot2::aes(
+    y = plot_label,
+    x = unknown_proportion_all_records,
+    fill = group_type
+  )
+) +
+  ggplot2::geom_col(width = 0.62) +
+  ggplot2::geom_text(
+    ggplot2::aes(
+      label = scales::percent(unknown_proportion_all_records, accuracy = 0.1)
+    ),
+    hjust = -0.12,
+    size = 3.6
+  ) +
+  ggplot2::scale_x_continuous(
+    labels = scales::label_percent(accuracy = 1),
+    limits = c(0, 0.29),
+    breaks = seq(0, 0.25, by = 0.05),
+    expand = ggplot2::expansion(mult = c(0, 0))
+  ) +
+  ggplot2::scale_fill_manual(
+    values = c(
+      "All other homicide" = "#D55E00",
+      "Filicide age group" = "#0072B2"
+    )
+  ) +
+  ggplot2::labs(
+    title = "Missing offender sex differs sharply across analytic groups",
+    subtitle = sprintf(
+      "Known-versus-unknown sex test: p %s",
+      format.pval(knownness_test$p.value, digits = 3, eps = 0.001)
+    ),
+    x = "Unknown or not-specified share of offender records",
+    fill = NULL,
+    caption = paste(
+      "Unknown sex is analyzed as missing outcome information, not as a",
+      "substantive third category."
+    )
+  ) +
+  publication_theme() +
+  ggplot2::theme(legend.position = "none")
+
+save_figure_pair(
+  unknown_sex_figure,
+  "figure_4_unknown_sex_2016_2025",
+  width = 10,
+  height = 6.5
+)
+unknown_sex_figure
+```

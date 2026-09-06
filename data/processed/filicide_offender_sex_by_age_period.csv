@@ -1,0 +1,49 @@
+period_id,start_year,end_year,age_bin_scheme,age_bin_order,victim_age_bin,male_offender_records,female_offender_records,unknown_or_not_specified_offender_records,known_sex_offender_records,total_offender_records,male_percent_known_sex,female_percent_known_sex,male_percent_all_records,female_percent_all_records,unknown_or_not_specified_percent_all_records,male_to_female_ratio_known_sex
+full_available_series,1985,2025,detailed_nonoverlap,1,0-6 days,220,960,36,1180,1216,18.644,81.356,18.092,78.947,2.961,0.229
+full_available_series,1985,2025,detailed_nonoverlap,2,7-364 days,3134,1899,15,5033,5048,62.269,37.731,62.084,37.619,0.297,1.650
+full_available_series,1985,2025,detailed_nonoverlap,3,1-4 years,3261,3078,27,6339,6366,51.443,48.557,51.225,48.351,0.424,1.059
+full_available_series,1985,2025,detailed_nonoverlap,4,5-9 years,879,785,2,1664,1666,52.825,47.175,52.761,47.119,0.120,1.120
+full_available_series,1985,2025,detailed_nonoverlap,5,10-14 years,548,345,2,893,895,61.366,38.634,61.229,38.547,0.223,1.588
+full_available_series,1985,2025,detailed_nonoverlap,6,15-17 years,328,119,2,447,449,73.378,26.622,73.051,26.503,0.445,2.756
+full_available_series,1985,2025,standard_nonoverlap,1,under 1 year,3354,2859,51,6213,6264,53.984,46.016,53.544,45.642,0.814,1.173
+full_available_series,1985,2025,standard_nonoverlap,2,1-4 years,3261,3078,27,6339,6366,51.443,48.557,51.225,48.351,0.424,1.059
+full_available_series,1985,2025,standard_nonoverlap,3,5-9 years,879,785,2,1664,1666,52.825,47.175,52.761,47.119,0.120,1.120
+full_available_series,1985,2025,standard_nonoverlap,4,10-14 years,548,345,2,893,895,61.366,38.634,61.229,38.547,0.223,1.588
+full_available_series,1985,2025,standard_nonoverlap,5,15-17 years,328,119,2,447,449,73.378,26.622,73.051,26.503,0.445,2.756
+full_available_series,1985,2025,overall,1,under 18 years,8370,7186,84,15556,15640,53.806,46.194,53.517,45.946,0.537,1.165
+pre_2021_transition,1985,2020,detailed_nonoverlap,1,0-6 days,210,942,36,1152,1188,18.229,81.771,17.677,79.293,3.030,0.223
+pre_2021_transition,1985,2020,detailed_nonoverlap,2,7-364 days,2806,1645,15,4451,4466,63.042,36.958,62.830,36.834,0.336,1.706
+pre_2021_transition,1985,2020,detailed_nonoverlap,3,1-4 years,2987,2699,24,5686,5710,52.533,47.467,52.312,47.268,0.420,1.107
+pre_2021_transition,1985,2020,detailed_nonoverlap,4,5-9 years,772,630,2,1402,1404,55.064,44.936,54.986,44.872,0.142,1.225
+pre_2021_transition,1985,2020,detailed_nonoverlap,5,10-14 years,471,264,2,735,737,64.082,35.918,63.908,35.821,0.271,1.784
+pre_2021_transition,1985,2020,detailed_nonoverlap,6,15-17 years,282,92,1,374,375,75.401,24.599,75.200,24.533,0.267,3.065
+pre_2021_transition,1985,2020,standard_nonoverlap,1,under 1 year,3016,2587,51,5603,5654,53.828,46.172,53.343,45.755,0.902,1.166
+pre_2021_transition,1985,2020,standard_nonoverlap,2,1-4 years,2987,2699,24,5686,5710,52.533,47.467,52.312,47.268,0.420,1.107
+pre_2021_transition,1985,2020,standard_nonoverlap,3,5-9 years,772,630,2,1402,1404,55.064,44.936,54.986,44.872,0.142,1.225
+pre_2021_transition,1985,2020,standard_nonoverlap,4,10-14 years,471,264,2,735,737,64.082,35.918,63.908,35.821,0.271,1.784
+pre_2021_transition,1985,2020,standard_nonoverlap,5,15-17 years,282,92,1,374,375,75.401,24.599,75.200,24.533,0.267,3.065
+pre_2021_transition,1985,2020,overall,1,under 18 years,7528,6272,80,13800,13880,54.551,45.449,54.236,45.187,0.576,1.200
+2021_and_later,2021,2025,detailed_nonoverlap,1,0-6 days,10,18,0,28,28,35.714,64.286,35.714,64.286,0.000,0.556
+2021_and_later,2021,2025,detailed_nonoverlap,2,7-364 days,328,254,0,582,582,56.357,43.643,56.357,43.643,0.000,1.291
+2021_and_later,2021,2025,detailed_nonoverlap,3,1-4 years,274,379,3,653,656,41.960,58.040,41.768,57.774,0.457,0.723
+2021_and_later,2021,2025,detailed_nonoverlap,4,5-9 years,107,155,0,262,262,40.840,59.160,40.840,59.160,0.000,0.690
+2021_and_later,2021,2025,detailed_nonoverlap,5,10-14 years,77,81,0,158,158,48.734,51.266,48.734,51.266,0.000,0.951
+2021_and_later,2021,2025,detailed_nonoverlap,6,15-17 years,46,27,1,73,74,63.014,36.986,62.162,36.486,1.351,1.704
+2021_and_later,2021,2025,standard_nonoverlap,1,under 1 year,338,272,0,610,610,55.410,44.590,55.410,44.590,0.000,1.243
+2021_and_later,2021,2025,standard_nonoverlap,2,1-4 years,274,379,3,653,656,41.960,58.040,41.768,57.774,0.457,0.723
+2021_and_later,2021,2025,standard_nonoverlap,3,5-9 years,107,155,0,262,262,40.840,59.160,40.840,59.160,0.000,0.690
+2021_and_later,2021,2025,standard_nonoverlap,4,10-14 years,77,81,0,158,158,48.734,51.266,48.734,51.266,0.000,0.951
+2021_and_later,2021,2025,standard_nonoverlap,5,15-17 years,46,27,1,73,74,63.014,36.986,62.162,36.486,1.351,1.704
+2021_and_later,2021,2025,overall,1,under 18 years,842,914,4,1756,1760,47.950,52.050,47.841,51.932,0.227,0.921
+latest_10_data_years,2016,2025,detailed_nonoverlap,1,0-6 days,31,61,0,92,92,33.696,66.304,33.696,66.304,0.000,0.508
+latest_10_data_years,2016,2025,detailed_nonoverlap,2,7-364 days,684,453,1,1137,1138,60.158,39.842,60.105,39.807,0.088,1.510
+latest_10_data_years,2016,2025,detailed_nonoverlap,3,1-4 years,592,733,5,1325,1330,44.679,55.321,44.511,55.113,0.376,0.808
+latest_10_data_years,2016,2025,detailed_nonoverlap,4,5-9 years,212,265,1,477,478,44.444,55.556,44.351,55.439,0.209,0.800
+latest_10_data_years,2016,2025,detailed_nonoverlap,5,10-14 years,151,135,0,286,286,52.797,47.203,52.797,47.203,0.000,1.119
+latest_10_data_years,2016,2025,detailed_nonoverlap,6,15-17 years,70,45,2,115,117,60.870,39.130,59.829,38.462,1.709,1.556
+latest_10_data_years,2016,2025,standard_nonoverlap,1,under 1 year,715,514,1,1229,1230,58.177,41.823,58.130,41.789,0.081,1.391
+latest_10_data_years,2016,2025,standard_nonoverlap,2,1-4 years,592,733,5,1325,1330,44.679,55.321,44.511,55.113,0.376,0.808
+latest_10_data_years,2016,2025,standard_nonoverlap,3,5-9 years,212,265,1,477,478,44.444,55.556,44.351,55.439,0.209,0.800
+latest_10_data_years,2016,2025,standard_nonoverlap,4,10-14 years,151,135,0,286,286,52.797,47.203,52.797,47.203,0.000,1.119
+latest_10_data_years,2016,2025,standard_nonoverlap,5,15-17 years,70,45,2,115,117,60.870,39.130,59.829,38.462,1.709,1.556
+latest_10_data_years,2016,2025,overall,1,under 18 years,1740,1692,9,3432,3441,50.699,49.301,50.567,49.172,0.262,1.028

@@ -1,0 +1,9 @@
+* text=auto
+*.csv text eol=lf
+*.md text eol=lf
+*.rmd text eol=lf
+*.py text eol=lf
+*.svg text eol=lf
+*.zip binary
+*.png binary
+*.html text eol=lf

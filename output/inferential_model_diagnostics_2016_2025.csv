@@ -1,0 +1,14 @@
+"diagnostic","estimate","degrees_of_freedom","p_value"
+"Primary logistic model converged (1=yes)",1,,
+"Known-sex offender records in primary model",150524,,
+"SHR source-record clusters",109130,,
+"Annual group cells with zero male or zero female records",0,,
+"Pearson overdispersion ratio",0.89528279864516,54,
+"Grouped-model Pearson goodness-of-fit",48.3452711268386,54,0.691317761914373
+"Cells above Cook's-distance screening threshold",10,,
+"Maximum Cook's distance",8.12623260407561,,
+"Maximum absolute OR change in leave-one-year-out analysis (%)",16.3056108508481,,
+"Robust omnibus homicide-group Wald test",4460.69503555329,6,0
+"Robust group-by-transition-period Wald test",18.0288583246608,6,0.0061604799847393
+"Known-versus-unknown sex Pearson test",1118.70985011579,6,1.86698314055389e-238
+"Minimum expected count in knownness test",22.6372283357292,,

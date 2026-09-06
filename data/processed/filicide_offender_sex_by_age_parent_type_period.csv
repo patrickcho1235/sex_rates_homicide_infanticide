@@ -1,0 +1,49 @@
+period_id,start_year,end_year,parent_type,age_bin_scheme,age_bin_order,victim_age_bin,male_offender_records,female_offender_records,unknown_or_not_specified_offender_records,known_sex_offender_records,total_offender_records,male_percent_known_sex,female_percent_known_sex,male_percent_all_records,female_percent_all_records,unknown_or_not_specified_percent_all_records,male_to_female_ratio_known_sex
+full_available_series,1985,2025,parent,standard_nonoverlap,1,under 1 year,3243,2854,51,6097,6148,53.190,46.810,52.749,46.422,0.830,1.136
+full_available_series,1985,2025,parent,standard_nonoverlap,2,1-4 years,2698,2980,27,5678,5705,47.517,52.483,47.292,52.235,0.473,0.905
+full_available_series,1985,2025,parent,standard_nonoverlap,3,5-9 years,762,751,2,1513,1515,50.364,49.636,50.297,49.571,0.132,1.015
+full_available_series,1985,2025,parent,standard_nonoverlap,4,10-14 years,422,324,2,746,748,56.568,43.432,56.417,43.316,0.267,1.302
+full_available_series,1985,2025,parent,standard_nonoverlap,5,15-17 years,219,117,2,336,338,65.179,34.821,64.793,34.615,0.592,1.872
+full_available_series,1985,2025,parent,overall,1,under 18 years,7344,7026,84,14370,14454,51.106,48.894,50.809,48.609,0.581,1.045
+full_available_series,1985,2025,stepparent,standard_nonoverlap,1,under 1 year,111,5,0,116,116,95.690,4.310,95.690,4.310,0.000,22.200
+full_available_series,1985,2025,stepparent,standard_nonoverlap,2,1-4 years,563,98,0,661,661,85.174,14.826,85.174,14.826,0.000,5.745
+full_available_series,1985,2025,stepparent,standard_nonoverlap,3,5-9 years,117,34,0,151,151,77.483,22.517,77.483,22.517,0.000,3.441
+full_available_series,1985,2025,stepparent,standard_nonoverlap,4,10-14 years,126,21,0,147,147,85.714,14.286,85.714,14.286,0.000,6.000
+full_available_series,1985,2025,stepparent,standard_nonoverlap,5,15-17 years,109,2,0,111,111,98.198,1.802,98.198,1.802,0.000,54.500
+full_available_series,1985,2025,stepparent,overall,1,under 18 years,1026,160,0,1186,1186,86.509,13.491,86.509,13.491,0.000,6.412
+pre_2021_transition,1985,2020,parent,standard_nonoverlap,1,under 1 year,2909,2582,51,5491,5542,52.978,47.022,52.490,46.590,0.920,1.127
+pre_2021_transition,1985,2020,parent,standard_nonoverlap,2,1-4 years,2455,2607,24,5062,5086,48.499,51.501,48.270,51.258,0.472,0.942
+pre_2021_transition,1985,2020,parent,standard_nonoverlap,3,5-9 years,663,602,2,1265,1267,52.411,47.589,52.328,47.514,0.158,1.101
+pre_2021_transition,1985,2020,parent,standard_nonoverlap,4,10-14 years,359,248,2,607,609,59.143,40.857,58.949,40.722,0.328,1.448
+pre_2021_transition,1985,2020,parent,standard_nonoverlap,5,15-17 years,183,90,1,273,274,67.033,32.967,66.788,32.847,0.365,2.033
+pre_2021_transition,1985,2020,parent,overall,1,under 18 years,6569,6129,80,12698,12778,51.733,48.267,51.409,47.965,0.626,1.072
+pre_2021_transition,1985,2020,stepparent,standard_nonoverlap,1,under 1 year,107,5,0,112,112,95.536,4.464,95.536,4.464,0.000,21.400
+pre_2021_transition,1985,2020,stepparent,standard_nonoverlap,2,1-4 years,532,92,0,624,624,85.256,14.744,85.256,14.744,0.000,5.783
+pre_2021_transition,1985,2020,stepparent,standard_nonoverlap,3,5-9 years,109,28,0,137,137,79.562,20.438,79.562,20.438,0.000,3.893
+pre_2021_transition,1985,2020,stepparent,standard_nonoverlap,4,10-14 years,112,16,0,128,128,87.500,12.500,87.500,12.500,0.000,7.000
+pre_2021_transition,1985,2020,stepparent,standard_nonoverlap,5,15-17 years,99,2,0,101,101,98.020,1.980,98.020,1.980,0.000,49.500
+pre_2021_transition,1985,2020,stepparent,overall,1,under 18 years,959,143,0,1102,1102,87.024,12.976,87.024,12.976,0.000,6.706
+2021_and_later,2021,2025,parent,standard_nonoverlap,1,under 1 year,334,272,0,606,606,55.116,44.884,55.116,44.884,0.000,1.228
+2021_and_later,2021,2025,parent,standard_nonoverlap,2,1-4 years,243,373,3,616,619,39.448,60.552,39.257,60.258,0.485,0.651
+2021_and_later,2021,2025,parent,standard_nonoverlap,3,5-9 years,99,149,0,248,248,39.919,60.081,39.919,60.081,0.000,0.664
+2021_and_later,2021,2025,parent,standard_nonoverlap,4,10-14 years,63,76,0,139,139,45.324,54.676,45.324,54.676,0.000,0.829
+2021_and_later,2021,2025,parent,standard_nonoverlap,5,15-17 years,36,27,1,63,64,57.143,42.857,56.250,42.188,1.562,1.333
+2021_and_later,2021,2025,parent,overall,1,under 18 years,775,897,4,1672,1676,46.352,53.648,46.241,53.520,0.239,0.864
+2021_and_later,2021,2025,stepparent,standard_nonoverlap,1,under 1 year,4,0,0,4,4,100.000,0.000,100.000,0.000,0.000,
+2021_and_later,2021,2025,stepparent,standard_nonoverlap,2,1-4 years,31,6,0,37,37,83.784,16.216,83.784,16.216,0.000,5.167
+2021_and_later,2021,2025,stepparent,standard_nonoverlap,3,5-9 years,8,6,0,14,14,57.143,42.857,57.143,42.857,0.000,1.333
+2021_and_later,2021,2025,stepparent,standard_nonoverlap,4,10-14 years,14,5,0,19,19,73.684,26.316,73.684,26.316,0.000,2.800
+2021_and_later,2021,2025,stepparent,standard_nonoverlap,5,15-17 years,10,0,0,10,10,100.000,0.000,100.000,0.000,0.000,
+2021_and_later,2021,2025,stepparent,overall,1,under 18 years,67,17,0,84,84,79.762,20.238,79.762,20.238,0.000,3.941
+latest_10_data_years,2016,2025,parent,standard_nonoverlap,1,under 1 year,699,513,1,1212,1213,57.673,42.327,57.626,42.292,0.082,1.363
+latest_10_data_years,2016,2025,parent,standard_nonoverlap,2,1-4 years,508,716,5,1224,1229,41.503,58.497,41.334,58.259,0.407,0.709
+latest_10_data_years,2016,2025,parent,standard_nonoverlap,3,5-9 years,192,252,1,444,445,43.243,56.757,43.146,56.629,0.225,0.762
+latest_10_data_years,2016,2025,parent,standard_nonoverlap,4,10-14 years,127,122,0,249,249,51.004,48.996,51.004,48.996,0.000,1.041
+latest_10_data_years,2016,2025,parent,standard_nonoverlap,5,15-17 years,52,45,2,97,99,53.608,46.392,52.525,45.455,2.020,1.156
+latest_10_data_years,2016,2025,parent,overall,1,under 18 years,1578,1648,9,3226,3235,48.915,51.085,48.779,50.943,0.278,0.958
+latest_10_data_years,2016,2025,stepparent,standard_nonoverlap,1,under 1 year,16,1,0,17,17,94.118,5.882,94.118,5.882,0.000,16.000
+latest_10_data_years,2016,2025,stepparent,standard_nonoverlap,2,1-4 years,84,17,0,101,101,83.168,16.832,83.168,16.832,0.000,4.941
+latest_10_data_years,2016,2025,stepparent,standard_nonoverlap,3,5-9 years,20,13,0,33,33,60.606,39.394,60.606,39.394,0.000,1.538
+latest_10_data_years,2016,2025,stepparent,standard_nonoverlap,4,10-14 years,24,13,0,37,37,64.865,35.135,64.865,35.135,0.000,1.846
+latest_10_data_years,2016,2025,stepparent,standard_nonoverlap,5,15-17 years,18,0,0,18,18,100.000,0.000,100.000,0.000,0.000,
+latest_10_data_years,2016,2025,stepparent,overall,1,under 18 years,162,44,0,206,206,78.641,21.359,78.641,21.359,0.000,3.682

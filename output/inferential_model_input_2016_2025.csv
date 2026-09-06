@@ -1,0 +1,71 @@
+"year","homicide_group","homicide_group_label","male_offender_records","female_offender_records","unknown_or_not_specified_offender_records","known_sex_offender_records","total_offender_records","female_proportion_known_sex","unknown_proportion_all_records"
+2016,"other_homicide","All other homicide (reference)",10515,1217,5324,11732,17056,0.103733378793045,0.312148217636023
+2017,"other_homicide","All other homicide (reference)",10729,1317,5332,12046,17378,0.109330898223477,0.306824720911497
+2018,"other_homicide","All other homicide (reference)",10540,1368,4864,11908,16772,0.114880752435338,0.290007154781779
+2019,"other_homicide","All other homicide (reference)",10925,1396,4791,12321,17112,0.11330249168087,0.279978962131837
+2020,"other_homicide","All other homicide (reference)",14464,1865,6494,16329,22823,0.114213975136261,0.284537527932349
+2021,"other_homicide","All other homicide (reference)",14094,1916,4663,16010,20673,0.119675202998126,0.225559909060127
+2022,"other_homicide","All other homicide (reference)",16579,2138,5809,18717,24526,0.114227707431747,0.236850689064666
+2023,"other_homicide","All other homicide (reference)",15954,1992,5176,17946,23122,0.110999665663658,0.223856067814203
+2024,"other_homicide","All other homicide (reference)",14540,1925,3920,16465,20385,0.116914667476465,0.192298258523424
+2025,"other_homicide","All other homicide (reference)",12146,1472,2743,13618,16361,0.108092230870906,0.167654788827089
+2016,"filicide_birth_through_6_days","Filicide, birth-6 days",3,14,0,17,17,0.823529411764706,0
+2017,"filicide_birth_through_6_days","Filicide, birth-6 days",6,11,0,17,17,0.647058823529412,0
+2018,"filicide_birth_through_6_days","Filicide, birth-6 days",4,9,0,13,13,0.692307692307692,0
+2019,"filicide_birth_through_6_days","Filicide, birth-6 days",4,7,0,11,11,0.636363636363636,0
+2020,"filicide_birth_through_6_days","Filicide, birth-6 days",4,2,0,6,6,0.333333333333333,0
+2021,"filicide_birth_through_6_days","Filicide, birth-6 days",2,5,0,7,7,0.714285714285714,0
+2022,"filicide_birth_through_6_days","Filicide, birth-6 days",3,6,0,9,9,0.666666666666667,0
+2023,"filicide_birth_through_6_days","Filicide, birth-6 days",1,3,0,4,4,0.75,0
+2024,"filicide_birth_through_6_days","Filicide, birth-6 days",1,1,0,2,2,0.5,0
+2025,"filicide_birth_through_6_days","Filicide, birth-6 days",3,3,0,6,6,0.5,0
+2016,"filicide_days_7_through_364","Infant filicide, 7-364 days",81,42,0,123,123,0.341463414634146,0
+2017,"filicide_days_7_through_364","Infant filicide, 7-364 days",66,48,0,114,114,0.421052631578947,0
+2018,"filicide_days_7_through_364","Infant filicide, 7-364 days",68,33,0,101,101,0.326732673267327,0
+2019,"filicide_days_7_through_364","Infant filicide, 7-364 days",71,41,0,112,112,0.366071428571429,0
+2020,"filicide_days_7_through_364","Infant filicide, 7-364 days",70,35,1,105,106,0.333333333333333,0.00943396226415094
+2021,"filicide_days_7_through_364","Infant filicide, 7-364 days",60,38,0,98,98,0.387755102040816,0
+2022,"filicide_days_7_through_364","Infant filicide, 7-364 days",88,55,0,143,143,0.384615384615385,0
+2023,"filicide_days_7_through_364","Infant filicide, 7-364 days",69,65,0,134,134,0.485074626865672,0
+2024,"filicide_days_7_through_364","Infant filicide, 7-364 days",67,55,0,122,122,0.450819672131148,0
+2025,"filicide_days_7_through_364","Infant filicide, 7-364 days",44,41,0,85,85,0.482352941176471,0
+2016,"filicide_years_1_through_4","Filicide, 1-4 years",66,49,1,115,116,0.426086956521739,0.00862068965517241
+2017,"filicide_years_1_through_4","Filicide, 1-4 years",65,56,1,121,122,0.462809917355372,0.00819672131147541
+2018,"filicide_years_1_through_4","Filicide, 1-4 years",65,83,0,148,148,0.560810810810811,0
+2019,"filicide_years_1_through_4","Filicide, 1-4 years",63,80,0,143,143,0.559440559440559,0
+2020,"filicide_years_1_through_4","Filicide, 1-4 years",59,86,0,145,145,0.593103448275862,0
+2021,"filicide_years_1_through_4","Filicide, 1-4 years",51,68,1,119,120,0.571428571428571,0.00833333333333333
+2022,"filicide_years_1_through_4","Filicide, 1-4 years",73,96,0,169,169,0.568047337278107,0
+2023,"filicide_years_1_through_4","Filicide, 1-4 years",56,84,1,140,141,0.6,0.00709219858156028
+2024,"filicide_years_1_through_4","Filicide, 1-4 years",52,77,0,129,129,0.596899224806202,0
+2025,"filicide_years_1_through_4","Filicide, 1-4 years",42,54,1,96,97,0.5625,0.0103092783505155
+2016,"filicide_years_5_through_9","Filicide, 5-9 years",20,17,0,37,37,0.459459459459459,0
+2017,"filicide_years_5_through_9","Filicide, 5-9 years",19,17,1,36,37,0.472222222222222,0.027027027027027
+2018,"filicide_years_5_through_9","Filicide, 5-9 years",14,16,0,30,30,0.533333333333333,0
+2019,"filicide_years_5_through_9","Filicide, 5-9 years",31,31,0,62,62,0.5,0
+2020,"filicide_years_5_through_9","Filicide, 5-9 years",21,29,0,50,50,0.58,0
+2021,"filicide_years_5_through_9","Filicide, 5-9 years",17,35,0,52,52,0.673076923076923,0
+2022,"filicide_years_5_through_9","Filicide, 5-9 years",28,40,0,68,68,0.588235294117647,0
+2023,"filicide_years_5_through_9","Filicide, 5-9 years",23,30,0,53,53,0.566037735849057,0
+2024,"filicide_years_5_through_9","Filicide, 5-9 years",24,23,0,47,47,0.48936170212766,0
+2025,"filicide_years_5_through_9","Filicide, 5-9 years",15,27,0,42,42,0.642857142857143,0
+2016,"filicide_years_10_through_14","Filicide, 10-14 years",10,7,0,17,17,0.411764705882353,0
+2017,"filicide_years_10_through_14","Filicide, 10-14 years",14,12,0,26,26,0.461538461538462,0
+2018,"filicide_years_10_through_14","Filicide, 10-14 years",17,12,0,29,29,0.413793103448276,0
+2019,"filicide_years_10_through_14","Filicide, 10-14 years",11,8,0,19,19,0.421052631578947,0
+2020,"filicide_years_10_through_14","Filicide, 10-14 years",22,15,0,37,37,0.405405405405405,0
+2021,"filicide_years_10_through_14","Filicide, 10-14 years",11,10,0,21,21,0.476190476190476,0
+2022,"filicide_years_10_through_14","Filicide, 10-14 years",23,28,0,51,51,0.549019607843137,0
+2023,"filicide_years_10_through_14","Filicide, 10-14 years",12,13,0,25,25,0.52,0
+2024,"filicide_years_10_through_14","Filicide, 10-14 years",17,14,0,31,31,0.451612903225806,0
+2025,"filicide_years_10_through_14","Filicide, 10-14 years",14,16,0,30,30,0.533333333333333,0
+2016,"filicide_years_15_through_17","Filicide, 15-17 years",5,3,0,8,8,0.375,0
+2017,"filicide_years_15_through_17","Filicide, 15-17 years",6,4,0,10,10,0.4,0
+2018,"filicide_years_15_through_17","Filicide, 15-17 years",6,3,0,9,9,0.333333333333333,0
+2019,"filicide_years_15_through_17","Filicide, 15-17 years",3,2,1,5,6,0.4,0.166666666666667
+2020,"filicide_years_15_through_17","Filicide, 15-17 years",4,6,0,10,10,0.6,0
+2021,"filicide_years_15_through_17","Filicide, 15-17 years",5,5,1,10,11,0.5,0.0909090909090909
+2022,"filicide_years_15_through_17","Filicide, 15-17 years",7,5,0,12,12,0.416666666666667,0
+2023,"filicide_years_15_through_17","Filicide, 15-17 years",12,9,0,21,21,0.428571428571429,0
+2024,"filicide_years_15_through_17","Filicide, 15-17 years",10,4,0,14,14,0.285714285714286,0
+2025,"filicide_years_15_through_17","Filicide, 15-17 years",12,4,0,16,16,0.25,0

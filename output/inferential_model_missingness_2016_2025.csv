@@ -1,0 +1,8 @@
+"homicide_group","homicide_group_label","male_offender_records","female_offender_records","unknown_or_not_specified_offender_records","known_sex_offender_records","total_offender_records","unknown_proportion_all_records","female_proportion_lower_bound","female_proportion_upper_bound"
+"other_homicide","All other homicide (reference)",130486,16606,49116,147092,196208,0.250326184457311,0.0846346734078121,0.334960857865123
+"filicide_birth_through_6_days","Filicide, birth-6 days",31,61,0,92,92,0,0.66304347826087,0.66304347826087
+"filicide_days_7_through_364","Infant filicide, 7-364 days",684,453,1,1137,1138,0.000878734622144112,0.398066783831283,0.398945518453427
+"filicide_years_1_through_4","Filicide, 1-4 years",592,733,5,1325,1330,0.0037593984962406,0.551127819548872,0.554887218045113
+"filicide_years_5_through_9","Filicide, 5-9 years",212,265,1,477,478,0.00209205020920502,0.554393305439331,0.556485355648536
+"filicide_years_10_through_14","Filicide, 10-14 years",151,135,0,286,286,0,0.472027972027972,0.472027972027972
+"filicide_years_15_through_17","Filicide, 15-17 years",70,45,2,115,117,0.0170940170940171,0.384615384615385,0.401709401709402

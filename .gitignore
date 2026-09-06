@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+
+# Local agent and editor metadata
+.agents/
+.codex/
+.Rproj.user/
+*.Rproj.user
+.vscode/
+
+# Local R sessions and credentials
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+.env
+.env.*
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
