@@ -39,6 +39,12 @@ The primary RStudio workflow writes these finished deliverables to `output/`:
 - `population_denominated_filicide_rate_ratio_2016_2025.csv`: pooled rates and
   the female:male rate ratio, a count-only Poisson interval, and the primary
   year-adjusted quasi-Poisson interval corrected for overdispersion.
+- `population_denominated_homicide_rates_2016_2025.csv`: annual female and male
+  general-homicide offender-record rates using Census resident-population
+  exposure.
+- `relative_filicide_vs_homicide_rate_ratio_2016_2025.csv`: the year-adjusted
+  ratio of rate ratios: mother:father filicide divided by female:male homicide,
+  with a year-cluster-robust confidence interval.
 - `census_parent_denominator_method_validation_2023.csv`: comparison of the
   published 2023 parent totals with the CPS ASEC microdata reconstruction.
 - `figures/figure_1_primary_comparison_2016_2025.{png,svg}`: linked panels for
@@ -62,6 +68,9 @@ The primary RStudio workflow writes these finished deliverables to `output/`:
 - `figures/figure_8_annual_population_rate_dumbbell_2016_2025.{png,svg}`:
   annual paired rates demonstrating the consistency of the population-
   denominated direction across all ten years.
+- `figures/figure_9_relative_female_filicide_elevation_2016_2025.{png,svg}`:
+  large-font direct answer showing how many times higher the female:male rate
+  ratio is for filicide than for homicide generally.
 
 Supporting prepared data remain in `data/processed/`:
 
@@ -82,6 +91,8 @@ Supporting prepared data remain in `data/processed/`:
 - `census_coresident_parent_denominators_2016_2025.csv`: sex-specific parent
   estimates from published CPS ASEC Table AD-2 for 2016-2023 and a validated
   public-use-microdata reconstruction for 2024-2025.
+- `census_resident_population_by_sex_2016_2025.csv`: official annual Census
+  resident-population estimates used for the general-homicide rate denominator.
 
 ## Operational definitions
 

@@ -75,6 +75,16 @@ analysis_years <- analysis_start_year:analysis_end_year
 
 shr_directory <- file.path("data", "raw", "fbi_shr")
 output_directory <- "output"
+processed_data_directory <- file.path("data", "processed")
+census_population_directory <- file.path("data", "raw", "census_population")
+census_population_2010_2020_file <- file.path(
+  census_population_directory,
+  "nc-est2020-agesex-res.csv"
+)
+census_population_2020_2025_file <- file.path(
+  census_population_directory,
+  "nc-est2025-agesex-res.csv"
+)
 output_csv <- file.path(
   output_directory,
   sprintf(
@@ -1769,6 +1779,323 @@ denominator estimates as fixed and does not represent uncertainty from SHR
 undercoverage, relationship missingness, the national/reporting-jurisdiction
 mismatch, or the exclusion of nonresident parents.
 
+## Relative to homicide generally: the requested rate-ratio ratio
+
+The year-adjusted mother:father estimate above comes from
+
+$$
+\log\{E(Y_{sy})\} = \alpha + \beta I(s=\mathrm{female})
+  + \gamma_y + \log(P_{sy}),
+$$
+
+where $Y_{sy}$ is the number of under-18 filicide offender records for sex
+$s$ in year $y$, $P_{sy}$ is the corresponding number of coresident parents,
+and $\gamma_y$ is a fixed effect for each year. Exponentiating $\beta$ gives
+`r sprintf("%.6f", population_rate_adjusted_ratio)`. The quasi-Poisson fit
+changes its standard error to allow annual overdispersion; it does not change
+the point estimate from the same log-linear mean model.
+
+To put that result back against the starting homicide comparison, the next
+calculation uses sex-specific annual U.S. resident-population estimates as the
+exposure for all homicide offender records. The requested estimand is
+
+$$
+\mathrm{relative\ female\ elevation} =
+\frac{\mathrm{mother:father\ filicide\ rate\ ratio}}
+     {\mathrm{female:male\ general\ homicide\ rate\ ratio}}.
+$$
+
+```{r relative-rate-ratio-model}
+census_population_source_urls <- c(
+  "2010-2020 vintage" = paste0(
+    "https://www2.census.gov/programs-surveys/popest/datasets/",
+    "2010-2020/national/asrh/nc-est2020-agesex-res.csv"
+  ),
+  "2020-2025 vintage" = paste0(
+    "https://www2.census.gov/programs-surveys/popest/datasets/",
+    "2020-2025/national/asrh/nc-est2025-agesex-res.csv"
+  )
+)
+
+required_population_files <- c(
+  census_population_2010_2020_file,
+  census_population_2020_2025_file
+)
+if (any(!file.exists(required_population_files))) {
+  stop(
+    paste(
+      "Missing Census population file(s):",
+      paste(required_population_files[!file.exists(required_population_files)],
+            collapse = ", ")
+    )
+  )
+}
+
+census_population_2010_2020 <- utils::read.csv(
+  census_population_2010_2020_file,
+  check.names = FALSE
+)
+census_population_2020_2025 <- utils::read.csv(
+  census_population_2020_2025_file,
+  check.names = FALSE
+)
+
+extract_total_population <- function(year, sex_code, sex_label) {
+  use_earlier_vintage <- year <= 2019L
+  source_data <- if (use_earlier_vintage) {
+    census_population_2010_2020
+  } else {
+    census_population_2020_2025
+  }
+  source_file <- if (use_earlier_vintage) {
+    census_population_2010_2020_file
+  } else {
+    census_population_2020_2025_file
+  }
+  source_vintage <- if (use_earlier_vintage) {
+    "2020 vintage"
+  } else {
+    "2025 vintage"
+  }
+  source_url <- if (use_earlier_vintage) {
+    unname(census_population_source_urls[["2010-2020 vintage"]])
+  } else {
+    unname(census_population_source_urls[["2020-2025 vintage"]])
+  }
+  population_column <- sprintf("POPESTIMATE%d", year)
+  selected_row <- source_data[
+    source_data$SEX == sex_code & source_data$AGE == 999L,
+    ,
+    drop = FALSE
+  ]
+  stopifnot(nrow(selected_row) == 1L, population_column %in% names(source_data))
+
+  data.frame(
+    year = year,
+    sex = sex_label,
+    resident_population = selected_row[[population_column]],
+    estimate_date = sprintf("July 1, %d", year),
+    source_vintage = source_vintage,
+    source_url = source_url,
+    source_file_md5 = unname(tools::md5sum(source_file)),
+    stringsAsFactors = FALSE
+  )
+}
+
+census_population_by_sex <- do.call(
+  rbind,
+  lapply(analysis_years, function(year) {
+    rbind(
+      extract_total_population(year, 1L, "male"),
+      extract_total_population(year, 2L, "female")
+    )
+  })
+)
+stopifnot(
+  nrow(census_population_by_sex) == 2L * length(analysis_years),
+  all(census_population_by_sex$resident_population > 0)
+)
+dir.create(processed_data_directory, recursive = TRUE, showWarnings = FALSE)
+utils::write.csv(
+  census_population_by_sex,
+  file.path(
+    processed_data_directory,
+    sprintf(
+      "census_resident_population_by_sex_%d_%d.csv",
+      analysis_start_year,
+      analysis_end_year
+    )
+  ),
+  row.names = FALSE,
+  na = ""
+)
+
+annual_general_homicide_counts <- do.call(
+  rbind,
+  lapply(seq_along(analysis_years), function(year_index) {
+    data.frame(
+      year = analysis_years[[year_index]],
+      sex = c("male", "female"),
+      offender_records = c(
+        unname(annual_counts[[year_index]]$general_homicide[["male"]]),
+        unname(annual_counts[[year_index]]$general_homicide[["female"]])
+      ),
+      stringsAsFactors = FALSE
+    )
+  })
+)
+general_homicide_rate_data <- merge(
+  annual_general_homicide_counts,
+  census_population_by_sex,
+  by = c("year", "sex"),
+  all.x = TRUE,
+  sort = TRUE
+)
+general_homicide_rate_data$reported_records_per_million_person_years <- with(
+  general_homicide_rate_data,
+  offender_records / resident_population * 1000000
+)
+utils::write.csv(
+  general_homicide_rate_data,
+  file.path(
+    output_directory,
+    sprintf(
+      "population_denominated_homicide_rates_%d_%d.csv",
+      analysis_start_year,
+      analysis_end_year
+    )
+  ),
+  row.names = FALSE,
+  na = ""
+)
+
+general_homicide_rate_totals <- stats::aggregate(
+  cbind(offender_records, resident_population) ~ sex,
+  data = general_homicide_rate_data,
+  FUN = sum
+)
+general_homicide_rate_totals$reported_records_per_million_person_years <- with(
+  general_homicide_rate_totals,
+  offender_records / resident_population * 1000000
+)
+
+# Stack the two sex-specific rate comparisons. Separate year effects are
+# fitted for filicide and homicide because their annual baselines differ.
+# The sex-by-outcome interaction is the log of the requested ratio of rate
+# ratios. Clustering the covariance by year allows arbitrary dependence among
+# the four observations from the same year, including filicide being a subset
+# of homicide generally.
+relative_rate_model_data <- rbind(
+  data.frame(
+    year = general_homicide_rate_data$year,
+    sex = general_homicide_rate_data$sex,
+    outcome = "general homicide",
+    offender_records = general_homicide_rate_data$offender_records,
+    exposure = general_homicide_rate_data$resident_population
+  ),
+  data.frame(
+    year = population_rate_data$year,
+    sex = population_rate_data$sex,
+    outcome = "filicide",
+    offender_records = population_rate_data$filicide_offender_records,
+    exposure = population_rate_data$parent_count
+  )
+)
+relative_rate_model_data$sex <- stats::relevel(
+  factor(relative_rate_model_data$sex),
+  ref = "male"
+)
+relative_rate_model_data$outcome <- stats::relevel(
+  factor(relative_rate_model_data$outcome),
+  ref = "general homicide"
+)
+relative_rate_model <- stats::glm(
+  offender_records ~ outcome * sex + outcome * factor(year) +
+    offset(log(exposure)),
+  family = stats::poisson(),
+  data = relative_rate_model_data
+)
+relative_rate_cluster_count <- length(unique(relative_rate_model_data$year))
+relative_rate_vcov <- sandwich::vcovCL(
+  relative_rate_model,
+  cluster = relative_rate_model_data$year,
+  type = "HC1"
+)
+relative_rate_interaction_name <- "outcomefilicide:sexfemale"
+relative_rate_log_estimate <- stats::coef(relative_rate_model)[[
+  relative_rate_interaction_name
+]]
+relative_rate_log_se <- sqrt(relative_rate_vcov[
+  relative_rate_interaction_name,
+  relative_rate_interaction_name
+])
+relative_rate_df <- relative_rate_cluster_count - 1L
+relative_rate_critical <- stats::qt(0.975, df = relative_rate_df)
+relative_rate_ratio_of_rate_ratios <- exp(relative_rate_log_estimate)
+relative_rate_ci <- exp(
+  relative_rate_log_estimate +
+    c(-1, 1) * relative_rate_critical * relative_rate_log_se
+)
+relative_rate_p_value <- 2 * stats::pt(
+  -abs(relative_rate_log_estimate / relative_rate_log_se),
+  df = relative_rate_df
+)
+
+general_homicide_year_adjusted_female_male_rr <- exp(
+  stats::coef(relative_rate_model)[["sexfemale"]]
+)
+filicide_year_adjusted_mother_father_rr <- exp(
+  stats::coef(relative_rate_model)[["sexfemale"]] +
+    relative_rate_log_estimate
+)
+
+female_general_homicide_rate <- general_homicide_rate_totals[
+  general_homicide_rate_totals$sex == "female",
+  ,
+  drop = FALSE
+]
+male_general_homicide_rate <- general_homicide_rate_totals[
+  general_homicide_rate_totals$sex == "male",
+  ,
+  drop = FALSE
+]
+
+relative_rate_summary <- data.frame(
+  analysis_start_year = analysis_start_year,
+  analysis_end_year = analysis_end_year,
+  female_general_homicide_offender_records =
+    female_general_homicide_rate$offender_records,
+  male_general_homicide_offender_records =
+    male_general_homicide_rate$offender_records,
+  female_resident_person_years =
+    female_general_homicide_rate$resident_population,
+  male_resident_person_years =
+    male_general_homicide_rate$resident_population,
+  female_general_homicide_records_per_million_person_years =
+    female_general_homicide_rate$reported_records_per_million_person_years,
+  male_general_homicide_records_per_million_person_years =
+    male_general_homicide_rate$reported_records_per_million_person_years,
+  year_adjusted_general_homicide_female_to_male_rate_ratio =
+    general_homicide_year_adjusted_female_male_rr,
+  year_adjusted_filicide_mother_to_father_rate_ratio =
+    filicide_year_adjusted_mother_father_rr,
+  ratio_of_rate_ratios = relative_rate_ratio_of_rate_ratios,
+  cluster_robust_ci_lower = relative_rate_ci[[1L]],
+  cluster_robust_ci_upper = relative_rate_ci[[2L]],
+  cluster_robust_p_value = relative_rate_p_value,
+  cluster_count = relative_rate_cluster_count,
+  stringsAsFactors = FALSE
+)
+utils::write.csv(
+  relative_rate_summary,
+  file.path(
+    output_directory,
+    sprintf(
+      "relative_filicide_vs_homicide_rate_ratio_%d_%d.csv",
+      analysis_start_year,
+      analysis_end_year
+    )
+  ),
+  row.names = FALSE,
+  na = ""
+)
+```
+
+The observed general-homicide offender-record rates were
+`r sprintf("%.2f", female_general_homicide_rate$reported_records_per_million_person_years)`
+per million female person-years and
+`r sprintf("%.2f", male_general_homicide_rate$reported_records_per_million_person_years)`
+per million male person-years. Their year-adjusted female:male rate ratio was
+`r sprintf("%.3f", general_homicide_year_adjusted_female_male_rr)`. Dividing
+the year-adjusted filicide ratio (`r sprintf("%.3f", filicide_year_adjusted_mother_father_rr)`)
+by that homicide ratio gives **`r sprintf("%.2f", relative_rate_ratio_of_rate_ratios)`**
+(year-cluster-robust 95% CI
+`r sprintf("%.2f", relative_rate_ci[[1L]])`--`r sprintf("%.2f", relative_rate_ci[[2L]])`,
+$p<$ `r format.pval(relative_rate_p_value, digits = 2)`). In direct terms:
+the female:male rate ratio is
+**`r sprintf("%.2f", relative_rate_ratio_of_rate_ratios)` times as high for
+filicide as it is for homicide generally**.
+
 ## Figures
 
 The primary figure separates three quantities that should not be conflated:
@@ -3097,4 +3424,212 @@ save_figure_pair(
   height = 8
 )
 annual_population_dumbbell_figure
+```
+
+### Direct-answer figure
+
+```{r direct-answer-figure, echo=FALSE, fig.width=14, fig.height=8, out.width="100%", fig.alt="Large-font infographic answering that the year-adjusted female-to-male rate ratio is 5.87 times as high for filicide as for homicide generally. It shows a general-homicide female-to-male rate ratio of 0.134 and a filicide mother-to-father rate ratio of 0.785."}
+direct_rate_ratio <- relative_rate_ratio_of_rate_ratios
+direct_rate_ci_lower <- relative_rate_ci[[1L]]
+direct_rate_ci_upper <- relative_rate_ci[[2L]]
+
+direct_answer_figure <- ggplot2::ggplot() +
+  ggplot2::annotate(
+    "rect",
+    xmin = 0,
+    xmax = 14,
+    ymin = 0,
+    ymax = 8,
+    fill = "#0B132B",
+    color = NA
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7,
+    y = 7.35,
+    label = paste(
+      "HOW MUCH MORE LIKELY IS A WOMAN TO KILL HER CHILD",
+      "THAN THE USUAL HOMICIDE SEX GAP WOULD SUGGEST?",
+      sep = "\n"
+    ),
+    color = "white",
+    fontface = "bold",
+    size = 6.5,
+    lineheight = 1.05
+  ) +
+  ggplot2::annotate(
+    "segment",
+    x = 1.1,
+    xend = 12.9,
+    y = 6.82,
+    yend = 6.82,
+    color = "#F6D365",
+    linewidth = 1.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7,
+    y = 6.25,
+    label = "THE DIRECT ANSWER",
+    color = "#F6D365",
+    fontface = "bold",
+    size = 8
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7,
+    y = 5.05,
+    label = sprintf("%.2f\u00d7", direct_rate_ratio),
+    color = "white",
+    fontface = "bold",
+    size = 27
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7,
+    y = 4.17,
+    label = "AS HIGH A FEMALE : MALE RATE RATIO",
+    color = "#BCC7DC",
+    fontface = "bold",
+    size = 5.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7,
+    y = 3.68,
+    label = "FILICIDE RELATIVE TO HOMICIDE GENERALLY",
+    color = "#F6D365",
+    fontface = "bold",
+    size = 6
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7,
+    y = 3.28,
+    label = sprintf(
+      "YEAR-ADJUSTED RATIO OF RATE RATIOS   |   95%% CI %.2f-%.2f   |   p < .001",
+      direct_rate_ci_lower,
+      direct_rate_ci_upper
+    ),
+    color = "#BCC7DC",
+    size = 4.4
+  ) +
+  ggplot2::annotate(
+    "rect",
+    xmin = 1.0,
+    xmax = 6.65,
+    ymin = 1.05,
+    ymax = 2.75,
+    fill = "#1B263F",
+    color = "#7F8CA3",
+    linewidth = 1.2
+  ) +
+  ggplot2::annotate(
+    "rect",
+    xmin = 7.35,
+    xmax = 13.0,
+    ymin = 1.05,
+    ymax = 2.75,
+    fill = "#332A17",
+    color = "#F6D365",
+    linewidth = 1.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 1.40,
+    y = 2.42,
+    label = "HOMICIDE GENERALLY",
+    hjust = 0,
+    color = "#BCC7DC",
+    fontface = "bold",
+    size = 4.7
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 1.40,
+    y = 1.86,
+    label = sprintf(
+      "%.3f FEMALE PER MALE",
+      general_homicide_year_adjusted_female_male_rr
+    ),
+    hjust = 0,
+    color = "white",
+    fontface = "bold",
+    size = 7
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 1.40,
+    y = 1.38,
+    label = sprintf(
+      "%.2f vs %.2f records per million person-years",
+      female_general_homicide_rate$reported_records_per_million_person_years,
+      male_general_homicide_rate$reported_records_per_million_person_years
+    ),
+    hjust = 0,
+    color = "#BCC7DC",
+    size = 3.8
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7.75,
+    y = 2.42,
+    label = "FILICIDE",
+    hjust = 0,
+    color = "#F6D365",
+    fontface = "bold",
+    size = 4.7
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7.75,
+    y = 1.86,
+    label = sprintf(
+      "%.3f MOTHER PER FATHER",
+      filicide_year_adjusted_mother_father_rr
+    ),
+    hjust = 0,
+    color = "white",
+    fontface = "bold",
+    size = 7
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7.75,
+    y = 1.38,
+    label = sprintf(
+      "%.2f vs %.2f records per million parent-years",
+      female_population_rate$reported_records_per_million_parent_years,
+      male_population_rate$reported_records_per_million_parent_years
+    ),
+    hjust = 0,
+    color = "#F0DDA4",
+    size = 3.8
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 7,
+    y = 0.47,
+    label = paste(
+      "FBI SHR offender records, 2016-2025. Homicide exposure: Census resident population;",
+      "filicide exposure: Census CPS ASEC coresident parents. Both comparisons adjust for year."
+    ),
+    color = "#8995A9",
+    size = 4.1
+  ) +
+  ggplot2::coord_cartesian(xlim = c(0, 14), ylim = c(0, 8), clip = "off") +
+  ggplot2::theme_void() +
+  ggplot2::theme(
+    plot.background = ggplot2::element_rect(fill = "#0B132B", color = NA),
+    panel.background = ggplot2::element_rect(fill = "#0B132B", color = NA),
+    plot.margin = ggplot2::margin(12, 12, 12, 12)
+  )
+
+save_figure_pair(
+  direct_answer_figure,
+  "figure_9_relative_female_filicide_elevation_2016_2025",
+  width = 14,
+  height = 8
+)
+direct_answer_figure
 ```

@@ -65,3 +65,22 @@ year and parent sex:
 These counts represent unique coresident parents in each survey year, not
 parent-child dyads. They exclude nonresident parents and should not be treated
 as a perfect exposure match for the SHR numerator.
+
+## Census resident-population denominator file
+
+`census_resident_population_by_sex_2016_2025.csv` contains July 1 national
+resident-population estimates for females and males:
+
+- `resident_population`: the official Census estimate for the indicated year
+  and sex (`AGE=999`, meaning all ages).
+- `estimate_date`: July 1 of the indicated year.
+- `source_vintage`: the 2020 vintage for 2016-2019 and the 2025 vintage for
+  2020-2025.
+- `source_url` and `source_file_md5`: the official source and checksum of the
+  cached CSV used to knit the analysis.
+
+These population estimates are the exposure denominator for the general-
+homicide offender-record rates. The filicide rates use the narrower
+coresident-parent exposure described above. The headline ratio of rate ratios
+compares the female:male rate ratio within each appropriately exposed
+population; it does not directly divide the two absolute rates.
