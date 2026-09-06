@@ -10,20 +10,12 @@ discussion.
 
 ## Main finding
 
-Relative to the sex gap in homicide offending generally, women's recorded
-offending rate rises sharply when the victim is their child. From 2016 through
-2025, the year-adjusted mother:father filicide rate ratio was 0.785, compared
-with a female:male general-homicide rate ratio of 0.134. The ratio of those
-rate ratios was **5.87** (95% CI 5.05-6.83): women's relative rate, compared
-with men's, was 5.87 times as high for filicide as for homicide generally.
+**When the victim is their child, women's homicide rate relative to men's is
+5.9 times as high as it is in homicide generally.** Women are at 13.4% of the
+male rate in homicide generally; mothers are at 78.5% of the father rate in
+filicide.
 
 [![Main result: the female-to-male rate ratio is 5.87 times as high for filicide as for homicide generally](output/figures/figure_9_relative_female_filicide_elevation_2016_2025.png)](output/figures/figure_9_relative_female_filicide_elevation_2016_2025.png)
-
-The 5.87-fold result is a comparison with the ordinary homicide sex gap. The
-population-denominated filicide rates themselves were 4.82 records per million
-coresident mother-years and 6.15 per million coresident father-years. Thus,
-the available data show dramatically greater *relative female involvement* in
-filicide, not a higher absolute mother than father rate under this denominator.
 
 ### Supporting figures
 

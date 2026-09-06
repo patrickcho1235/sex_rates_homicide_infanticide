@@ -3426,14 +3426,14 @@ save_figure_pair(
 annual_population_dumbbell_figure
 ```
 
-### Direct-answer figure
+### Headline social figure
 
-```{r direct-answer-figure, echo=FALSE, fig.width=14, fig.height=8, out.width="100%", fig.alt="Large-font infographic answering that the year-adjusted female-to-male rate ratio is 5.87 times as high for filicide as for homicide generally. It shows a general-homicide female-to-male rate ratio of 0.134 and a filicide mother-to-father rate ratio of 0.785."}
+```{r direct-answer-figure, echo=FALSE, fig.width=16, fig.height=9, out.width="100%", fig.alt="Social graphic stating that women's homicide rate relative to men's is 5.9 times as high when the victim is their child. A large arrow moves from women at 13 percent of men's general-homicide rate to mothers at 79 percent of fathers' filicide rate."}
 direct_rate_ratio <- relative_rate_ratio_of_rate_ratios
 direct_rate_ci_lower <- relative_rate_ci[[1L]]
 direct_rate_ci_upper <- relative_rate_ci[[2L]]
 
-direct_answer_figure <- ggplot2::ggplot() +
+direct_answer_figure_detailed <- ggplot2::ggplot() +
   ggplot2::annotate(
     "rect",
     xmin = 0,
@@ -3625,11 +3625,191 @@ direct_answer_figure <- ggplot2::ggplot() +
     plot.margin = ggplot2::margin(12, 12, 12, 12)
   )
 
+# Headline social-card treatment. The detailed estimates remain in the report;
+# this version gives the central comparison enough visual hierarchy to work as
+# a standalone image.
+headline_general_percent <-
+  100 * general_homicide_year_adjusted_female_male_rr
+headline_filicide_percent <-
+  100 * filicide_year_adjusted_mother_father_rr
+headline_arrow_start <- 3.65
+headline_arrow_end <- 12.35
+
+direct_answer_figure <- ggplot2::ggplot() +
+  ggplot2::annotate(
+    "rect",
+    xmin = 0,
+    xmax = 16,
+    ymin = 0,
+    ymax = 9,
+    fill = "#081226",
+    color = NA
+  ) +
+  ggplot2::annotate(
+    "rect",
+    xmin = 0,
+    xmax = 0.22,
+    ymin = 0,
+    ymax = 9,
+    fill = "#F6D365",
+    color = NA
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 8.25,
+    label = "WHEN THE VICTIM IS THEIR CHILD,",
+    color = "#F6D365",
+    fontface = "bold",
+    size = 7.4
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 7.48,
+    label = "WOMEN'S RELATIVE HOMICIDE RATE IS",
+    color = "white",
+    fontface = "bold",
+    size = 8.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 6.15,
+    label = sprintf("%.1f\u00d7 AS HIGH", direct_rate_ratio),
+    color = "white",
+    fontface = "bold",
+    size = 25
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 5.27,
+    label = "AS IT IS IN HOMICIDE GENERALLY",
+    color = "#BAC6DB",
+    fontface = "bold",
+    size = 6.2
+  ) +
+  ggplot2::annotate(
+    "segment",
+    x = headline_arrow_start,
+    xend = headline_arrow_end - 0.55,
+    y = 3.48,
+    yend = 3.48,
+    color = "#F6D365",
+    linewidth = 4.2,
+    lineend = "round",
+    arrow = grid::arrow(
+      length = grid::unit(0.23, "inches"),
+      type = "closed"
+    )
+  ) +
+  ggplot2::annotate(
+    "point",
+    x = headline_arrow_start,
+    y = 3.48,
+    shape = 21,
+    size = 35,
+    stroke = 2.3,
+    fill = "#C95773",
+    color = "white"
+  ) +
+  ggplot2::annotate(
+    "point",
+    x = headline_arrow_end,
+    y = 3.48,
+    shape = 21,
+    size = 38,
+    stroke = 2.6,
+    fill = "#F6D365",
+    color = "white"
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = headline_arrow_start,
+    y = 3.48,
+    label = sprintf("%.1f%%", headline_general_percent),
+    color = "white",
+    fontface = "bold",
+    size = 7.6
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = headline_arrow_end,
+    y = 3.48,
+    label = sprintf("%.1f%%", headline_filicide_percent),
+    color = "#081226",
+    fontface = "bold",
+    size = 8.0
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = headline_arrow_start,
+    y = 2.45,
+    label = "HOMICIDE GENERALLY",
+    color = "#F0A7B7",
+    fontface = "bold",
+    size = 5.1
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = headline_arrow_start,
+    y = 1.98,
+    label = "women's rate vs men's",
+    color = "#AAB7CD",
+    size = 4.4
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = headline_arrow_end,
+    y = 2.45,
+    label = "FILICIDE",
+    color = "#F6D365",
+    fontface = "bold",
+    size = 5.1
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = headline_arrow_end,
+    y = 1.98,
+    label = "mothers' rate vs fathers'",
+    color = "#AAB7CD",
+    size = 4.4
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 1.23,
+    label = sprintf(
+      "FROM %.1f%% OF MEN'S RATE TO %.1f%% OF FATHERS' RATE",
+      headline_general_percent,
+      headline_filicide_percent
+    ),
+    color = "white",
+    fontface = "bold",
+    size = 5.5
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 0.45,
+    label = "FBI SHR + U.S. Census  |  2016-2025  |  year-adjusted",
+    color = "#71809A",
+    size = 3.8
+  ) +
+  ggplot2::coord_cartesian(xlim = c(0, 16), ylim = c(0, 9), clip = "off") +
+  ggplot2::theme_void() +
+  ggplot2::theme(
+    plot.background = ggplot2::element_rect(fill = "#081226", color = NA),
+    panel.background = ggplot2::element_rect(fill = "#081226", color = NA),
+    plot.margin = ggplot2::margin(10, 10, 10, 10)
+  )
+
 save_figure_pair(
   direct_answer_figure,
   "figure_9_relative_female_filicide_elevation_2016_2025",
-  width = 14,
-  height = 8
+  width = 16,
+  height = 9
 )
 direct_answer_figure
 ```
