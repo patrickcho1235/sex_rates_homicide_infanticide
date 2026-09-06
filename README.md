@@ -8,14 +8,12 @@ The project does **not** analyze any individual criminal case. Its purpose is
 to make the base-rate evidence and its limitations clear enough for public
 discussion.
 
-## Main finding
+## The homicide sex gap collapses when the victim is their child
 
-**When the victim is their child, women's homicide rate relative to men's is
-5.9 times as high as it is in homicide generally.** Women are at 13.4% of the
-male rate in homicide generally; mothers are at 78.5% of the father rate in
-filicide.
+[![Rate walls showing women at 13.4 percent of the male general-homicide rate and mothers at 78.5 percent of the father filicide rate](output/figures/figure_10_rate_wall_relative_female_filicide_elevation_2016_2025.png)](output/figures/figure_10_rate_wall_relative_female_filicide_elevation_2016_2025.png)
 
-[![Main result: the female-to-male rate ratio is 5.87 times as high for filicide as for homicide generally](output/figures/figure_9_relative_female_filicide_elevation_2016_2025.png)](output/figures/figure_9_relative_female_filicide_elevation_2016_2025.png)
+Women's rate relative to men's is **5.9 times as high** in filicide as it is
+in homicide generally.
 
 ### Supporting figures
 
@@ -98,6 +96,9 @@ The primary RStudio workflow writes these finished deliverables to `output/`:
 - `figures/figure_9_relative_female_filicide_elevation_2016_2025.{png,svg}`:
   large-font direct answer showing how many times higher the female:male rate
   ratio is for filicide than for homicide generally.
+- `figures/figure_10_rate_wall_relative_female_filicide_elevation_2016_2025.{png,svg}`:
+  headline 100-tile rate walls contrasting women at 13.4% of the male
+  general-homicide rate with mothers at 78.5% of the father filicide rate.
 
 Supporting prepared data remain in `data/processed/`:
 

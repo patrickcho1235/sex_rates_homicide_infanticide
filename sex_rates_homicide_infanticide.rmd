@@ -3667,7 +3667,7 @@ direct_answer_figure <- ggplot2::ggplot() +
     "text",
     x = 8,
     y = 7.48,
-    label = "WOMEN'S RELATIVE HOMICIDE RATE IS",
+    label = "WOMEN'S INFANTICIDE RATE IS",
     color = "white",
     fontface = "bold",
     size = 8.2
@@ -3812,4 +3812,199 @@ save_figure_pair(
   height = 9
 )
 direct_answer_figure
+```
+
+### Rate-wall headline figure
+
+```{r rate-wall-figure, echo=FALSE, fig.width=16, fig.height=9, out.width="100%", fig.alt="Two 100-tile rate walls under the headline The homicide sex gap collapses when the victim is their child. The general-homicide wall is 13.4 percent illuminated and the filicide wall is 78.5 percent illuminated, with a 5.9-times badge between them."}
+make_rate_wall <- function(panel, percent, x_origin) {
+  tile_id <- seq_len(100L)
+  column <- (tile_id - 1L) %% 10L
+  row <- (tile_id - 1L) %/% 10L
+  tile_step <- 0.47
+  tile_size <- 0.40
+  fill_fraction <- pmin(pmax(percent - (tile_id - 1L), 0), 1)
+
+  data.frame(
+    panel = panel,
+    tile_id = tile_id,
+    xmin = x_origin + column * tile_step,
+    xmax = x_origin + column * tile_step + tile_size,
+    ymin = 1.48 + row * tile_step,
+    ymax = 1.48 + row * tile_step + tile_size,
+    fill_fraction = fill_fraction,
+    stringsAsFactors = FALSE
+  )
+}
+
+rate_wall_data <- rbind(
+  make_rate_wall(
+    "Homicide generally",
+    headline_general_percent,
+    x_origin = 1.05
+  ),
+  make_rate_wall(
+    "Filicide",
+    headline_filicide_percent,
+    x_origin = 10.72
+  )
+)
+rate_wall_data$filled_xmax <- with(
+  rate_wall_data,
+  xmin + (xmax - xmin) * fill_fraction
+)
+rate_wall_filled <- rate_wall_data[
+  rate_wall_data$fill_fraction > 0,
+  ,
+  drop = FALSE
+]
+
+rate_wall_figure <- ggplot2::ggplot() +
+  ggplot2::annotate(
+    "rect",
+    xmin = 0,
+    xmax = 16,
+    ymin = 0,
+    ymax = 9,
+    fill = "#071225",
+    color = NA
+  ) +
+  ggplot2::geom_rect(
+    data = rate_wall_data,
+    ggplot2::aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    fill = "#1A2943",
+    color = "#344562",
+    linewidth = 0.32
+  ) +
+  ggplot2::geom_rect(
+    data = rate_wall_filled,
+    ggplot2::aes(
+      xmin = xmin,
+      xmax = filled_xmax,
+      ymin = ymin,
+      ymax = ymax
+    ),
+    fill = "#EE5D8B",
+    color = NA
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 8.28,
+    label = "THE HOMICIDE SEX GAP COLLAPSES",
+    color = "white",
+    fontface = "bold",
+    size = 9.2
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 7.55,
+    label = "WHEN THE VICTIM IS THEIR CHILD",
+    color = "#F6D365",
+    fontface = "bold",
+    size = 7.4
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 3.165,
+    y = 6.63,
+    label = sprintf("%.1f%%", headline_general_percent),
+    color = "#F5A0BA",
+    fontface = "bold",
+    size = 10
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 3.165,
+    y = 6.18,
+    label = "HOMICIDE GENERALLY",
+    color = "#B9C5D9",
+    fontface = "bold",
+    size = 4.7
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 12.835,
+    y = 6.63,
+    label = sprintf("%.1f%%", headline_filicide_percent),
+    color = "#F5A0BA",
+    fontface = "bold",
+    size = 10
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 12.835,
+    y = 6.18,
+    label = "FILICIDE",
+    color = "#F6D365",
+    fontface = "bold",
+    size = 4.7
+  ) +
+  ggplot2::annotate(
+    "point",
+    x = 8,
+    y = 3.87,
+    shape = 21,
+    size = 46,
+    stroke = 2.5,
+    fill = "#101D34",
+    color = "#F6D365"
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 4.06,
+    label = sprintf("%.1f\u00d7", direct_rate_ratio),
+    color = "white",
+    fontface = "bold",
+    size = 12
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 3.51,
+    label = "AS HIGH",
+    color = "#F6D365",
+    fontface = "bold",
+    size = 4.1
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 1.05,
+    label = "EACH WALL: FEMALE RATE AS A PERCENT OF THE MALE RATE",
+    color = "white",
+    fontface = "bold",
+    size = 4.7
+  ) +
+  ggplot2::annotate(
+    "text",
+    x = 8,
+    y = 0.48,
+    label = "FBI SHR + U.S. Census  |  2016-2025  |  year-adjusted",
+    color = "#71809A",
+    size = 3.8
+  ) +
+  ggplot2::coord_fixed(
+    ratio = 1,
+    xlim = c(0, 16),
+    ylim = c(0, 9),
+    clip = "off",
+    expand = FALSE
+  ) +
+  ggplot2::theme_void() +
+  ggplot2::theme(
+    plot.background = ggplot2::element_rect(fill = "#071225", color = NA),
+    panel.background = ggplot2::element_rect(fill = "#071225", color = NA),
+    plot.margin = ggplot2::margin(10, 10, 10, 10)
+  )
+
+save_figure_pair(
+  rate_wall_figure,
+  "figure_10_rate_wall_relative_female_filicide_elevation_2016_2025",
+  width = 16,
+  height = 9
+)
+rate_wall_figure
 ```
